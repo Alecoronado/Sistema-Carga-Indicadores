@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 
-# Catálogo de Lineamientos
+# Catálogos de Opciones
 # =========================
 LINEAMIENTOS_ESTRATEGICOS = [
     "Alineamiento Estratégico",
@@ -26,6 +26,25 @@ LINEAMIENTOS_ESTRATEGICOS = [
     "Eficiencia Operacional",
     "Excelencia Operacional",
     "Solidez Financiera"
+]
+
+TIPOS_INDICADOR = [
+    "Estratégico",
+    "Regular"
+]
+
+AREAS = [
+    "Efectividad en el Desarrollo",
+    "Programacion Financiera y Reporting",
+    "Alianzas Estratégicas"
+]
+
+UNIDADES_ORGANIZACIONALES = [
+    "VPO",
+    "VPD",
+    "VPE",
+    "PRE",
+    "VPF"
 ]
 # Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
@@ -191,9 +210,9 @@ def render_crear_indicador():
                     help="Nombre del indicador"
                 )
                 
-                tipo_indicador = st.text_input(
+                tipo_indicador = st.selectbox(
                     "Tipo Indicador *",
-                    placeholder="Ej: Estratégico, Operativo, Gestión",
+                    options=TIPOS_INDICADOR,
                     help="Tipo o categoría del indicador"
                 )
                 
@@ -208,19 +227,19 @@ def render_crear_indicador():
             with col2:
                 area = st.text_input(
                     "Área",
-                    placeholder="Ej: Ventas, Marketing, Operaciones",
+                    placeholder="Ej: Efectividad en el Desarrollo, Programacion Financiera y Reporting, Alianzas Estratégicas",
                     help="Área responsable"
                 )
                 
-                unidad_organizacional = st.text_input(
+                unidad_organizacional = st.selectbox(
                     "Unidad Organizacional",
-                    placeholder="Ej: Dirección Comercial",
+                    options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES,
                     help="Unidad organizacional responsable"
                 )
                 
-                unidad_organizacional_colaboradora = st.text_input(
+                unidad_organizacional_colaboradora = st.selectbox(
                     "Unidad Organizacional Colaboradora",
-                    placeholder="Ej: Dirección de TI",
+                    options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES,
                     help="Unidad que colabora"
                 )
                 
@@ -326,8 +345,8 @@ def render_crear_indicador():
                             id_estrategico=id_estrategico if id_estrategico else None,
                             año=año,
                             indicador=indicador,
-                            unidad_organizacional=unidad_organizacional if unidad_organizacional else None,
-                            unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora else None,
+                            unidad_organizacional=unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
+                            unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
                             area=area if area else None,
                             lineamientos_estrategicos=lineamientos_estrategicos if lineamientos_estrategicos else None,
                             meta=meta if meta else None,
