@@ -75,11 +75,32 @@ class Database:
                     fecha_inicio DATE,
                     fecha_fin_original DATE,
                     fecha_fin_actual DATE,
-                    fecha_carga DATE,
+                    fecha_carga DATE DEFAULT CURRENT_DATE,
                     tipo_indicador TEXT,
-                    hitos_etapas TEXT,
+                    tiene_hitos BOOLEAN DEFAULT FALSE,
+                    responsable TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create hitos table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hitos (
+                    id SERIAL PRIMARY KEY,
+                    indicador_id INTEGER NOT NULL,
+                    nombre TEXT NOT NULL,
+                    descripcion TEXT,
+                    fecha_inicio DATE,
+                    fecha_fin_planificada DATE,
+                    fecha_fin_real DATE,
+                    avance_porcentaje INTEGER DEFAULT 0,
+                    estado TEXT DEFAULT 'Por comenzar',
+                    orden INTEGER,
+                    fecha_carga DATE DEFAULT CURRENT_DATE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
                 )
             """)
         else:
@@ -102,11 +123,32 @@ class Database:
                     fecha_inicio DATE,
                     fecha_fin_original DATE,
                     fecha_fin_actual DATE,
-                    fecha_carga DATE,
+                    fecha_carga DATE DEFAULT (date('now')),
                     tipo_indicador TEXT,
-                    hitos_etapas TEXT,
+                    tiene_hitos INTEGER DEFAULT 0,
+                    responsable TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create hitos table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hitos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    indicador_id INTEGER NOT NULL,
+                    nombre TEXT NOT NULL,
+                    descripcion TEXT,
+                    fecha_inicio DATE,
+                    fecha_fin_planificada DATE,
+                    fecha_fin_real DATE,
+                    avance_porcentaje INTEGER DEFAULT 0,
+                    estado TEXT DEFAULT 'Por comenzar',
+                    orden INTEGER,
+                    fecha_carga DATE DEFAULT (date('now')),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
                 )
             """)
         
@@ -126,13 +168,12 @@ class Database:
         meta: str = None,
         medida: str = None,
         avance: float = None,
-        avance_porcentaje: int = 0,
         estado: str = "Por comenzar",
         fecha_inicio: str = None,
         fecha_fin_original: str = None,
         fecha_fin_actual: str = None,
-        fecha_carga: str = None,
-        hitos_etapas: str = None
+        tiene_hitos: bool = False,
+        responsable: str = None
     ) -> int:
         """
         Create a new indicator
@@ -141,41 +182,54 @@ class Database:
             año: Year
             indicador: Indicator name
             tipo_indicador: Type of indicator
-            id_estrategico: Strategic ID
-            unidad_organizacional: Organizational unit
-            unidad_organizacional_colaboradora: Collaborating organizational unit
-            area: Area
-            lineamientos_estrategicos: Strategic guidelines
-            meta: Goal/target
-            medida: Measure/metric
-            avance: Progress value
-            avance_porcentaje: Progress percentage (0-100)
-            estado: Status
-            fecha_inicio: Start date
-            fecha_fin_original: Original end date
-            fecha_fin_actual: Current end date
-            fecha_carga: Load date
-            hitos_etapas: Milestones/stages
+            tiene_hitos: Whether this indicator has milestones
+            responsable: Person responsible for the indicator
+            meta: Target value (for quantitative indicators, should be numeric)
+            avance: Current progress value (for quantitative indicators)
+            ... (other args)
         
         Returns:
             ID of created record
+        
+        Note:
+            - avance_porcentaje is calculated automatically for quantitative indicators (without hitos)
+            - fecha_carga is set automatically by database DEFAULT
         """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
+        # Calculate avance_porcentaje for quantitative indicators (without hitos)
+        avance_porcentaje = 0
+        if not tiene_hitos and meta and avance is not None:
+            try:
+                meta_num = float(meta)
+                if meta_num > 0:
+                    avance_porcentaje = int((avance / meta_num) * 100)
+                    avance_porcentaje = min(100, max(0, avance_porcentaje))  # Clamp 0-100
+            except ValueError:
+                # Meta is not numeric, keep avance_porcentaje as 0
+                pass
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        
+        # fecha_carga will be set automatically by DEFAULT CURRENT_DATE / date('now')
+        cursor.execute(f"""
             INSERT INTO indicadores 
             (id_estrategico, año, indicador, unidad_organizacional, 
              unidad_organizacional_colaboradora, area, lineamientos_estrategicos,
              meta, medida, avance, avance_porcentaje, estado,
-             fecha_inicio, fecha_fin_original, fecha_fin_actual, fecha_carga,
-             tipo_indicador, hitos_etapas)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             fecha_inicio, fecha_fin_original, fecha_fin_actual,
+             tipo_indicador, tiene_hitos, responsable)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, 
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
+                    {placeholder}, {placeholder})
         """, (id_estrategico, año, indicador, unidad_organizacional,
               unidad_organizacional_colaboradora, area, lineamientos_estrategicos,
               meta, medida, avance, avance_porcentaje, estado,
-              fecha_inicio, fecha_fin_original, fecha_fin_actual, fecha_carga,
-              tipo_indicador, hitos_etapas))
+              fecha_inicio, fecha_fin_original, fecha_fin_actual,
+              tipo_indicador, 1 if tiene_hitos else 0, responsable))
         
         record_id = cursor.lastrowid
         conn.commit()
@@ -264,38 +318,66 @@ class Database:
                 return dict(row)
         return None
     
-    def update_avance(self, indicador_id: int, nuevo_avance_porcentaje: int) -> bool:
+    def update_avance(
+        self,
+        indicador_id: int,
+        nuevo_avance: float = None,
+        nueva_meta: str = None,
+        nuevo_estado: str = None
+    ) -> bool:
         """
-        Update progress percentage for an indicator
-        Automatically updates status based on progress
+        Update progress for a quantitative indicator (without hitos)
+        Automatically recalculates avance_porcentaje based on avance/meta
         
         Args:
-            indicador_id: ID of the indicator
-            nuevo_avance_porcentaje: New progress percentage (0-100)
+            indicador_id: ID of the indicator to update
+            nuevo_avance: New progress value
+            nueva_meta: New target value
+            nuevo_estado: New status
         
         Returns:
-            True if successful, False otherwise
+            True if update was successful, False otherwise
         """
-        # Determine status based on progress
-        if nuevo_avance_porcentaje == 0:
-            estado = "Por comenzar"
-        elif nuevo_avance_porcentaje < 100:
-            estado = "En progreso"
-        else:
-            estado = "Completado"
-        
         conn = self.get_connection()
         cursor = conn.cursor()
         
+        # Get current values
+        indicador = self.get_indicador_by_id(indicador_id)
+        if not indicador:
+            conn.close()
+            return False
+        
+        # Use new values or keep current ones
+        meta = nueva_meta if nueva_meta is not None else indicador.get('meta')
+        avance = nuevo_avance if nuevo_avance is not None else indicador.get('avance', 0)
+        estado = nuevo_estado if nuevo_estado is not None else indicador.get('estado')
+        
+        # Calculate avance_porcentaje automatically
+        avance_porcentaje = 0
+        if meta and avance is not None:
+            try:
+                meta_num = float(meta)
+                if meta_num > 0:
+                    avance_porcentaje = int((avance / meta_num) * 100)
+                    avance_porcentaje = min(100, max(0, avance_porcentaje))  # Clamp 0-100
+            except ValueError:
+                # Meta is not numeric, keep avance_porcentaje as 0
+                pass
+        
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        
         cursor.execute(f"""
             UPDATE indicadores 
-            SET avance_porcentaje = {placeholder}, estado = {placeholder}, updated_at = CURRENT_TIMESTAMP
+            SET avance = {placeholder},
+                meta = {placeholder},
+                avance_porcentaje = {placeholder},
+                estado = {placeholder},
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = {placeholder}
-        """, (nuevo_avance_porcentaje, estado, indicador_id))
+        """, (avance, meta, avance_porcentaje, estado, indicador_id))
         
-        success = cursor.rowcount > 0
         conn.commit()
+        success = cursor.rowcount > 0
         conn.close()
         
         return success
@@ -377,3 +459,129 @@ class Database:
         
         conn.close()
         return values
+    
+    # ==================== HITOS METHODS ====================
+    
+    def create_hito(
+        self,
+        indicador_id: int,
+        nombre: str,
+        descripcion: str = None,
+        fecha_inicio: str = None,
+        fecha_fin_planificada: str = None,
+        fecha_fin_real: str = None,
+        avance_porcentaje: int = 0,
+        estado: str = "Por comenzar",
+        orden: int = None
+    ) -> int:
+        """Create a new hito for an indicator"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"""
+            INSERT INTO hitos 
+            (indicador_id, nombre, descripcion, fecha_inicio, fecha_fin_planificada,
+             fecha_fin_real, avance_porcentaje, estado, orden)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder},
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder})
+        """, (indicador_id, nombre, descripcion, fecha_inicio, fecha_fin_planificada,
+              fecha_fin_real, avance_porcentaje, estado, orden))
+        
+        hito_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return hito_id
+    
+    def get_hitos_by_indicador(self, indicador_id: int) -> pd.DataFrame:
+        """Get all hitos for a specific indicator"""
+        conn = self.get_connection()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        query = f"SELECT * FROM hitos WHERE indicador_id = {placeholder} ORDER BY orden, id"
+        
+        df = pd.read_sql_query(query, conn, params=[indicador_id])
+        conn.close()
+        
+        return df
+    
+    def update_hito_avance(self, hito_id: int, nuevo_avance_porcentaje: int) -> bool:
+        """Update progress for a hito"""
+        # Determine status based on progress
+        if nuevo_avance_porcentaje == 0:
+            estado = "Por comenzar"
+        elif nuevo_avance_porcentaje < 100:
+            estado = "En progreso"
+        else:
+            estado = "Completado"
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"""
+            UPDATE hitos 
+            SET avance_porcentaje = {placeholder}, estado = {placeholder}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {placeholder}
+        """, (nuevo_avance_porcentaje, estado, hito_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def delete_hito(self, hito_id: int) -> bool:
+        """Delete a hito"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"DELETE FROM hitos WHERE id = {placeholder}", (hito_id,))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def update_indicador_from_hitos(self, indicador_id: int) -> bool:
+        """
+        Update indicator progress based on average of its hitos
+        For qualitative indicators (with hitos)
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Get average progress from hitos
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"""
+            SELECT AVG(avance_porcentaje) as avg_avance
+            FROM hitos
+            WHERE indicador_id = {placeholder}
+        """, (indicador_id,))
+        
+        result = cursor.fetchone()
+        avg_avance = int(result[0]) if result and result[0] is not None else 0
+        
+        # Determine status
+        if avg_avance == 0:
+            estado = "Por comenzar"
+        elif avg_avance < 100:
+            estado = "En progreso"
+        else:
+            estado = "Completado"
+        
+        # Update indicator
+        cursor.execute(f"""
+            UPDATE indicadores
+            SET avance_porcentaje = {placeholder}, estado = {placeholder}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {placeholder}
+        """, (avg_avance, estado, indicador_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
