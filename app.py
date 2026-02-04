@@ -17,6 +17,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
+# Catálogo de Lineamientos
+# =========================
+LINEAMIENTOS_ESTRATEGICOS = [
+    "Alineamiento Estratégico",
+    "Complementariedad",
+    "Eficiencia Operacional",
+    "Excelencia Operacional",
+    "Solidez Financiera"
+]
 # Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
@@ -204,10 +214,10 @@ def render_crear_indicador():
                     help="Unidad que colabora"
                 )
                 
-                lineamientos_estrategicos = st.text_area(
-                    "Lineamientos Estratégicos",
-                    placeholder="Lineamientos o directrices estratégicas",
-                    height=100
+                lineamientos_estrategicos = st.selectbox(
+                    "Lineamiento Estratégico *",
+                    options=LINEAMIENTOS_ESTRATEGICOS,
+                    help="Selecciona el lineamiento estratégico"
                 )
             
             st.markdown("---")
@@ -305,8 +315,8 @@ def render_crear_indicador():
             
             if submitted:
                 # Validate required fields
-                if not indicador or not tipo_indicador:
-                    st.error("❌ Por favor completa los campos obligatorios: Indicador y Tipo Indicador")
+                if not indicador or not tipo_indicador or not lineamientos_estrategicos:
+                    st.error("❌ Por favor completa los campos obligatorios: Indicador, Tipo Indicador y Lineamiento Estratégico")
                 else:
                     # Create indicator
                     try:
