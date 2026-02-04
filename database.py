@@ -23,7 +23,7 @@ class Database:
     
     def __init__(self, db_path: str = "indicadores.db"):
         # Determine database type from environment
-        self.database_url = os.getenv('DATABASE_URL')
+        self.database_url = os.getenv('postgresql://postgres:jvtXFQfytRmkKXRFULdNtYVyXBOKIFbk@postgres.railway.internal:5432/railway')
         
         if self.database_url:
             # Production: Use PostgreSQL
