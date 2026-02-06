@@ -174,6 +174,12 @@ def render_dashboard():
         
         display_df.rename(columns=column_names, inplace=True)
         
+        # Convert date columns to datetime to avoid TypeError
+        date_columns = ['Inicio', 'Fin']
+        for col in date_columns:
+            if col in display_df.columns:
+                display_df[col] = pd.to_datetime(display_df[col], errors='coerce')
+        
         st.dataframe(
             display_df,
             use_container_width=True,
