@@ -22,42 +22,12 @@ class Database:
     """Database manager for indicator tracking system"""
     
     def __init__(self, db_path: str = "indicadores.db"):
-        # Debug: Print environment variables
+        # Simple debug logging
         print("=" * 50)
-        print("🔍 DEBUG: Checking environment variables")
-        print(f"DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
+        print("Initializing database...")
         
-        # Try multiple methods to get DATABASE_URL
-        # Method 1: Standard DATABASE_URL
+        # Check for DATABASE_URL
         self.database_url = os.getenv('DATABASE_URL')
-        
-        # Method 2: Railway might use PGDATABASE, PGHOST, etc.
-        if not self.database_url:
-            pghost = os.getenv('PGHOST')
-            pguser = os.getenv('PGUSER') or os.getenv('PGUSERNAME')
-            pgpassword = os.getenv('PGPASSWORD')
-            pgdatabase = os.getenv('PGDATABASE')
-            pgport = os.getenv('PGPORT', '5432')
-            
-            if all([pghost, pguser, pgpassword, pgdatabase]):
-                self.database_url = f"postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}"
-                print(f"✅ Built DATABASE_URL from PG* variables")
-        
-        # Method 3: Check for any postgres-related env vars
-        if not self.database_url:
-            postgres_vars = {k: v for k, v in os.environ.items() if 'PG' in k.upper() or 'POSTGRES' in k.upper()}
-            if postgres_vars:
-                print(f"⚠️ Found PostgreSQL-related vars but couldn't build URL: {list(postgres_vars.keys())}")
-        
-        if self.database_url:
-            print(f"DATABASE_URL found: {self.database_url[:30]}...")  # Show first 30 chars only
-        else:
-            print("⚠️ DATABASE_URL not found in environment")
-            all_vars = list(os.environ.keys())
-            print(f"Total env vars: {len(all_vars)}")
-            print(f"Sample env vars: {all_vars[:15]}")  # Show first 15 env vars
-        
-        print("=" * 50)
         
         if self.database_url:
             # Production: Use PostgreSQL
@@ -71,6 +41,9 @@ class Database:
             self.db_path = db_path
             print(f"💾 Using SQLite database: {db_path}")
         
+        print("=" * 50)
+        
+        # Initialize database tables
         self.init_db()
     
     def get_connection(self):
