@@ -845,33 +845,45 @@ with st.sidebar:
     st.title("🎯 Sistema de Indicadores")
     st.markdown("---")
     
+    # Dashboard
     if st.button("📊 Dashboard", use_container_width=True):
         st.session_state.page = 'dashboard'
     
-    if st.button("➕ Crear Indicador", use_container_width=True):
-        st.session_state.page = 'crear'
+    st.markdown("### ➕ Crear")
     
-    if st.button("🔄 Actualizar Avance", use_container_width=True):
-        st.session_state.page = 'actualizar'
+    if st.button("📝 Crear Indicador", use_container_width=True):
+        st.session_state.page = 'crear_indicador'
     
-    if st.button("🎯 Gestionar Hitos", use_container_width=True):
-        st.session_state.page = 'hitos'
+    if st.button("🎯 Crear Hito", use_container_width=True):
+        st.session_state.page = 'crear_hito'
     
-    if st.button("⚙️ Gestión", use_container_width=True):
+    st.markdown("### 🔄 Actualizar")
+    
+    if st.button("📈 Actualizar Indicadores", use_container_width=True):
+        st.session_state.page = 'actualizar_indicadores'
+    
+    if st.button("🎯 Actualizar Hitos", use_container_width=True):
+        st.session_state.page = 'actualizar_hitos'
+    
+    st.markdown("### ⚙️ Administración")
+    
+    if st.button("🗑️ Gestión", use_container_width=True):
         st.session_state.page = 'gestion'
     
     st.markdown("---")
-    st.caption("v2.0.0 - Sistema de Indicadores e Hitos")
+    st.caption("v2.1.0 - Sistema de Indicadores e Hitos")
 
 
 # Render selected page
 if st.session_state.page == 'dashboard':
     render_dashboard()
-elif st.session_state.page == 'crear':
+elif st.session_state.page == 'crear_indicador':
     render_crear_indicador()
-elif st.session_state.page == 'actualizar':
+elif st.session_state.page == 'crear_hito':
+    render_gestionar_hitos()
+elif st.session_state.page == 'actualizar_indicadores':
     render_actualizar_avance()
-elif st.session_state.page == 'hitos':
+elif st.session_state.page == 'actualizar_hitos':
     render_gestionar_hitos()
 elif st.session_state.page == 'gestion':
     render_gestion()
