@@ -51,109 +51,117 @@ class Database:
     
     def init_db(self):
         """Initialize database and create tables if they don't exist"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        # Adjust SQL syntax based on database type
-        if self.db_type == 'postgresql':
-            # PostgreSQL syntax
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS indicadores (
-                    id SERIAL PRIMARY KEY,
-                    id_estrategico TEXT,
-                    año INTEGER NOT NULL,
-                    indicador TEXT NOT NULL,
-                    unidad_organizacional TEXT,
-                    unidad_organizacional_colaboradora TEXT,
-                    area TEXT,
-                    lineamientos_estrategicos TEXT,
-                    meta TEXT,
-                    medida TEXT,
-                    avance REAL,
-                    avance_porcentaje INTEGER DEFAULT 0,
-                    estado TEXT DEFAULT 'Por comenzar',
-                    fecha_inicio DATE,
-                    fecha_fin_original DATE,
-                    fecha_fin_actual DATE,
-                    fecha_carga DATE DEFAULT CURRENT_DATE,
-                    tipo_indicador TEXT,
-                    tiene_hitos BOOLEAN DEFAULT FALSE,
-                    responsable TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
             
-            # Create hitos table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS hitos (
-                    id SERIAL PRIMARY KEY,
-                    indicador_id INTEGER NOT NULL,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    fecha_inicio DATE,
-                    fecha_fin_planificada DATE,
-                    fecha_fin_real DATE,
-                    avance_porcentaje INTEGER DEFAULT 0,
-                    estado TEXT DEFAULT 'Por comenzar',
-                    orden INTEGER,
-                    fecha_carga DATE DEFAULT CURRENT_DATE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
-                )
-            """)
-        else:
-            # SQLite syntax
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS indicadores (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id_estrategico TEXT,
-                    año INTEGER NOT NULL,
-                    indicador TEXT NOT NULL,
-                    unidad_organizacional TEXT,
-                    unidad_organizacional_colaboradora TEXT,
-                    area TEXT,
-                    lineamientos_estrategicos TEXT,
-                    meta TEXT,
-                    medida TEXT,
-                    avance REAL,
-                    avance_porcentaje INTEGER DEFAULT 0,
-                    estado TEXT DEFAULT 'Por comenzar',
-                    fecha_inicio DATE,
-                    fecha_fin_original DATE,
-                    fecha_fin_actual DATE,
-                    fecha_carga DATE DEFAULT (date('now')),
-                    tipo_indicador TEXT,
-                    tiene_hitos INTEGER DEFAULT 0,
-                    responsable TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+            # Adjust SQL syntax based on database type
+            if self.db_type == 'postgresql':
+                # PostgreSQL syntax
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS indicadores (
+                        id SERIAL PRIMARY KEY,
+                        id_estrategico TEXT,
+                        año INTEGER NOT NULL,
+                        indicador TEXT NOT NULL,
+                        unidad_organizacional TEXT,
+                        unidad_organizacional_colaboradora TEXT,
+                        area TEXT,
+                        lineamientos_estrategicos TEXT,
+                        meta TEXT,
+                        medida TEXT,
+                        avance REAL,
+                        avance_porcentaje INTEGER DEFAULT 0,
+                        estado TEXT DEFAULT 'Por comenzar',
+                        fecha_inicio DATE,
+                        fecha_fin_original DATE,
+                        fecha_fin_actual DATE,
+                        fecha_carga DATE DEFAULT CURRENT_DATE,
+                        tipo_indicador TEXT,
+                        tiene_hitos BOOLEAN DEFAULT FALSE,
+                        responsable TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Create hitos table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS hitos (
+                        id SERIAL PRIMARY KEY,
+                        indicador_id INTEGER NOT NULL,
+                        nombre TEXT NOT NULL,
+                        descripcion TEXT,
+                        fecha_inicio DATE,
+                        fecha_fin_planificada DATE,
+                        fecha_fin_real DATE,
+                        avance_porcentaje INTEGER DEFAULT 0,
+                        estado TEXT DEFAULT 'Por comenzar',
+                        orden INTEGER,
+                        fecha_carga DATE DEFAULT CURRENT_DATE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
+                    )
+                """)
+                print("✅ PostgreSQL tables created successfully")
+            else:
+                # SQLite syntax
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS indicadores (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id_estrategico TEXT,
+                        año INTEGER NOT NULL,
+                        indicador TEXT NOT NULL,
+                        unidad_organizacional TEXT,
+                        unidad_organizacional_colaboradora TEXT,
+                        area TEXT,
+                        lineamientos_estrategicos TEXT,
+                        meta TEXT,
+                        medida TEXT,
+                        avance REAL,
+                        avance_porcentaje INTEGER DEFAULT 0,
+                        estado TEXT DEFAULT 'Por comenzar',
+                        fecha_inicio DATE,
+                        fecha_fin_original DATE,
+                        fecha_fin_actual DATE,
+                        fecha_carga DATE DEFAULT (date('now')),
+                        tipo_indicador TEXT,
+                        tiene_hitos INTEGER DEFAULT 0,
+                        responsable TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Create hitos table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS hitos (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        indicador_id INTEGER NOT NULL,
+                        nombre TEXT NOT NULL,
+                        descripcion TEXT,
+                        fecha_inicio DATE,
+                        fecha_fin_planificada DATE,
+                        fecha_fin_real DATE,
+                        avance_porcentaje INTEGER DEFAULT 0,
+                        estado TEXT DEFAULT 'Por comenzar',
+                        orden INTEGER,
+                        fecha_carga DATE DEFAULT (date('now')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
+                    )
+                """)
+                print("✅ SQLite tables created successfully")
             
-            # Create hitos table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS hitos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    indicador_id INTEGER NOT NULL,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    fecha_inicio DATE,
-                    fecha_fin_planificada DATE,
-                    fecha_fin_real DATE,
-                    avance_porcentaje INTEGER DEFAULT 0,
-                    estado TEXT DEFAULT 'Por comenzar',
-                    orden INTEGER,
-                    fecha_carga DATE DEFAULT (date('now')),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
-                )
-            """)
-        
-        conn.commit()
-        conn.close()
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"❌ ERROR creating database tables: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def create_indicador(
         self,
