@@ -49,7 +49,7 @@ class Database:
     def get_connection(self):
         """Create and return a database connection"""
         if self.db_type == 'postgresql':
-            conn = psycopg2.connect(self.database_url)
+            conn = psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
             return conn
         else:
             conn = sqlite3.connect(self.db_path)
