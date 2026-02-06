@@ -27,14 +27,35 @@ class Database:
         print("🔍 DEBUG: Checking environment variables")
         print(f"DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
         
-        # Determine database type from environment
+        # Try multiple methods to get DATABASE_URL
+        # Method 1: Standard DATABASE_URL
         self.database_url = os.getenv('DATABASE_URL')
         
+        # Method 2: Railway might use PGDATABASE, PGHOST, etc.
+        if not self.database_url:
+            pghost = os.getenv('PGHOST')
+            pguser = os.getenv('PGUSER') or os.getenv('PGUSERNAME')
+            pgpassword = os.getenv('PGPASSWORD')
+            pgdatabase = os.getenv('PGDATABASE')
+            pgport = os.getenv('PGPORT', '5432')
+            
+            if all([pghost, pguser, pgpassword, pgdatabase]):
+                self.database_url = f"postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}"
+                print(f"✅ Built DATABASE_URL from PG* variables")
+        
+        # Method 3: Check for any postgres-related env vars
+        if not self.database_url:
+            postgres_vars = {k: v for k, v in os.environ.items() if 'PG' in k.upper() or 'POSTGRES' in k.upper()}
+            if postgres_vars:
+                print(f"⚠️ Found PostgreSQL-related vars but couldn't build URL: {list(postgres_vars.keys())}")
+        
         if self.database_url:
-            print(f"DATABASE_URL found: {self.database_url[:20]}...")  # Show first 20 chars only
+            print(f"DATABASE_URL found: {self.database_url[:30]}...")  # Show first 30 chars only
         else:
             print("⚠️ DATABASE_URL not found in environment")
-            print(f"Available env vars: {list(os.environ.keys())[:10]}")  # Show first 10 env vars
+            all_vars = list(os.environ.keys())
+            print(f"Total env vars: {len(all_vars)}")
+            print(f"Sample env vars: {all_vars[:15]}")  # Show first 15 env vars
         
         print("=" * 50)
         
