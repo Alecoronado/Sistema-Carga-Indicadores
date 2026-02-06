@@ -262,11 +262,12 @@ def render_crear_indicador():
             col1, col2 = st.columns(2)
             
             with col1:
-                meta = st.text_area(
-                    "Meta",
-                    placeholder="Ej: Incrementar ventas en 15%",
-                    help="Meta u objetivo a alcanzar",
-                    height=80
+                meta = st.number_input(
+                    "Meta (Valor Objetivo)",
+                    min_value=0.0,
+                    value=0.0,
+                    step=0.1,
+                    help="Valor numérico objetivo a alcanzar (para calcular Avance%)"
                 )
                 
                 medida = st.text_input(
@@ -349,7 +350,7 @@ def render_crear_indicador():
                             unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
                             area=area if area else None,
                             lineamientos_estrategicos=lineamientos_estrategicos if lineamientos_estrategicos else None,
-                            meta=meta if meta else None,
+                            meta=str(meta) if meta > 0 else None,
                             medida=medida if medida else None,
                             avance=avance,
                             estado=estado,
@@ -461,9 +462,17 @@ def render_actualizar_avance():
                     
                     with col1:
                         # Update meta if needed
-                        nueva_meta = st.text_input(
+                        current_meta = indicador.get('meta', '0')
+                        try:
+                            meta_value = float(current_meta) if current_meta else 0.0
+                        except (ValueError, TypeError):
+                            meta_value = 0.0
+                        
+                        nueva_meta = st.number_input(
                             "Meta (Valor Objetivo)",
-                            value=str(indicador.get('meta', '')),
+                            min_value=0.0,
+                            value=meta_value,
+                            step=0.1,
                             help="Valor objetivo a alcanzar"
                         )
                     
@@ -511,7 +520,7 @@ def render_actualizar_avance():
                             success = db.update_avance(
                                 indicador_id=selected_id,
                                 nuevo_avance=nuevo_avance_valor,
-                                nueva_meta=nueva_meta,
+                                nueva_meta=str(nueva_meta) if nueva_meta > 0 else None,
                                 nuevo_estado=nuevo_estado
                             )
                             
