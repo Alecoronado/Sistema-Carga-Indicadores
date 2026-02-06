@@ -22,8 +22,21 @@ class Database:
     """Database manager for indicator tracking system"""
     
     def __init__(self, db_path: str = "indicadores.db"):
+        # Debug: Print environment variables
+        print("=" * 50)
+        print("🔍 DEBUG: Checking environment variables")
+        print(f"DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
+        
         # Determine database type from environment
         self.database_url = os.getenv('DATABASE_URL')
+        
+        if self.database_url:
+            print(f"DATABASE_URL found: {self.database_url[:20]}...")  # Show first 20 chars only
+        else:
+            print("⚠️ DATABASE_URL not found in environment")
+            print(f"Available env vars: {list(os.environ.keys())[:10]}")  # Show first 10 env vars
+        
+        print("=" * 50)
         
         if self.database_url:
             # Production: Use PostgreSQL
