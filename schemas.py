@@ -25,6 +25,7 @@ class IndicadorBase(BaseModel):
     fecha_fin_actual: Optional[date] = None
     tipo_indicador: str
     tiene_hitos: bool = False
+    tiene_actividades: bool = False
     responsable: Optional[str] = None
 
 
@@ -50,6 +51,7 @@ class IndicadorUpdate(BaseModel):
     fecha_fin_actual: Optional[date] = None
     tipo_indicador: Optional[str] = None
     tiene_hitos: Optional[bool] = None
+    tiene_actividades: Optional[bool] = None
     responsable: Optional[str] = None
 
 

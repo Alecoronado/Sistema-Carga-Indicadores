@@ -44,7 +44,9 @@ UNIDADES_ORGANIZACIONALES = [
     "VPD",
     "VPE",
     "PRE",
-    "VPF"
+    "VPF",
+    "Ninguna"
+
 ]
 
 # Apply custom CSS
@@ -238,9 +240,9 @@ def render_gestion_indicadores_admin():
                     )
                 
                 with col2:
-                    area = st.selectbox(
+                    area = st.text_input(
                         "Área",
-                        options=["Seleccionar..."] + AREAS
+                        placeholder="Ej: Efectividad en el Desarrollo"
                     )
                     
                     unidad_organizacional = st.selectbox(
@@ -292,7 +294,7 @@ def render_gestion_indicadores_admin():
                 
                 # Dates
                 st.markdown("### 📅 Fechas Plan")
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 
                 with col1:
                     fecha_inicio = st.date_input(
@@ -306,25 +308,32 @@ def render_gestion_indicadores_admin():
                         value=None
                     )
                 
-                with col3:
-                    fecha_fin_actual = st.date_input(
-                        "Fecha Fin Actual",
-                        value=None
-                    )
-                
                 st.markdown("---")
                 
                 # Additional Information
-                st.markdown("### 📝 Información Adicional")
+                st.markdown("### 📝 Estructura del Indicador")
                 
-                tiene_hitos = st.checkbox(
-                    "¿Tiene Hitos/Etapas?",
-                    value=True,
-                    help="Marca si este indicador se divide en hitos"
-                )
+                col1, col2 = st.columns(2)
                 
-                if tiene_hitos:
-                    st.info("ℹ️ Podrás agregar hitos desde la sección '🎯 Gestión de Hitos'")
+                with col1:
+                    tiene_hitos = st.checkbox(
+                        "¿Tiene Hitos/Etapas?",
+                        value=True,
+                        help="Marca si este indicador se divide en hitos"
+                    )
+                    
+                    if tiene_hitos:
+                        st.caption("ℹ️ Podrás agregar hitos en '🎯 Gestión de Hitos'")
+                
+                with col2:
+                    tiene_actividades = st.checkbox(
+                        "¿Tiene Actividades?",
+                        value=False,
+                        help="Marca si los hitos se dividen en actividades"
+                    )
+                    
+                    if tiene_actividades:
+                        st.caption("ℹ️ Podrás agregar actividades en '📋 Gestión de Actividades'")
                 
                 st.markdown("---")
                 
@@ -342,21 +351,23 @@ def render_gestion_indicadores_admin():
                                 indicador=indicador,
                                 unidad_organizacional=unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
                                 unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
-                                area=area if area != "Seleccionar..." else None,
+                                area=area if area else None,
                                 lineamientos_estrategicos=lineamientos_estrategicos,
                                 meta=meta if meta else None,
                                 medida=medida if medida else None,
                                 estado=estado,
                                 fecha_inicio=str(fecha_inicio) if fecha_inicio else None,
                                 fecha_fin_original=str(fecha_fin_original) if fecha_fin_original else None,
-                                fecha_fin_actual=str(fecha_fin_actual) if fecha_fin_actual else None,
                                 tipo_indicador=tipo_indicador,
                                 tiene_hitos=tiene_hitos,
+                                tiene_actividades=tiene_actividades,
                                 responsable=responsable
                             )
                             st.success(f"✅ Indicador creado exitosamente (ID: {record_id})")
                             if tiene_hitos:
                                 st.info("💡 Ahora puedes agregar hitos en '🎯 Gestión de Hitos'")
+                            if tiene_actividades:
+                                st.info("💡 Podrás agregar actividades en '📋 Gestión de Actividades'")
                             st.balloons()
                         except Exception as e:
                             st.error(f"❌ Error al crear el indicador: {str(e)}")
