@@ -239,13 +239,12 @@ class Database:
             VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, 
                     {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
                     {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
-                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, 
-                    {placeholder}, {placeholder}, {placeholder})
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (id_estrategico, año, indicador, unidad_organizacional,
               unidad_organizacional_colaboradora, area, lineamientos_estrategicos,
               meta, medida, avance, avance_porcentaje, estado,
               fecha_inicio, fecha_fin_original, fecha_fin_actual,
-              tipo_indicador, 1 if tiene_hitos else 0, 1 if tiene_actividades else 0, responsable))
+              tipo_indicador, tiene_hitos, tiene_actividades, responsable))
         
         record_id = cursor.lastrowid
         conn.commit()
