@@ -46,14 +46,22 @@ class Database:
         # Initialize database tables
         self.init_db()
     
-    def get_connection(self):
-        """Create and return a database connection"""
+    def get_connection(self, use_dict_cursor: bool = True):
+        """
+        Create and return a database connection
+        
+        Args:
+            use_dict_cursor: If True, returns dict-like rows (RealDictCursor for PG, sqlite3.Row for SQLite)
+                             If False, returns tuples (Standard Cursor for PG, plain tuple for SQLite)
+        """
         if self.db_type == 'postgresql':
-            conn = psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
+            cursor_factory = RealDictCursor if use_dict_cursor else None
+            conn = psycopg2.connect(self.database_url, cursor_factory=cursor_factory)
             return conn
         else:
             conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
+            if use_dict_cursor:
+                conn.row_factory = sqlite3.Row
             return conn
     
     def init_db(self):
@@ -273,7 +281,7 @@ class Database:
         Returns:
             DataFrame with all matching records
         """
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         
         query = "SELECT * FROM indicadores WHERE 1=1"
         params = []
@@ -325,7 +333,12 @@ class Database:
         
         if row:
             if self.db_type == 'postgresql':
-                # PostgreSQL returns tuple, need column names
+                # PostgreSQL with RealDictCursor already returns a dict-like object
+                # But we need to be careful if we change cursor factory in future
+                if hasattr(row, 'keys') or isinstance(row, dict):
+                    return dict(row)
+                
+                # Fallback for tuple cursor
                 columns = [desc[0] for desc in cursor.description]
                 return dict(zip(columns, row))
             else:
@@ -465,7 +478,7 @@ class Database:
         Returns:
             List of unique values
         """
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         cursor = conn.cursor()
         
         # Use parameterized query safely (column name is validated by caller)
@@ -512,7 +525,7 @@ class Database:
     
     def get_hitos_by_indicador(self, indicador_id: int) -> pd.DataFrame:
         """Get all hitos for a specific indicator"""
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         query = f"SELECT * FROM hitos WHERE indicador_id = {placeholder} ORDER BY orden, id"
@@ -797,7 +810,7 @@ class Database:
     
     def get_historico_avance(self, entidad: str, id_entidad: int) -> pd.DataFrame:
         """Get complete historical progress for an entity"""
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         query = f"""
@@ -827,7 +840,7 @@ class Database:
         if mes is None:
             mes = datetime.now().strftime('%Y-%m')
         
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         
         # Get hitos without report for this month
@@ -871,7 +884,7 @@ class Database:
     
     def get_hitos_by_responsable(self, responsable: str) -> pd.DataFrame:
         """Get all hitos assigned to a specific responsable"""
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         
@@ -911,7 +924,7 @@ class Database:
     
     def get_actividades_by_responsable(self, responsable: str) -> pd.DataFrame:
         """Get all actividades assigned to a specific responsable"""
-        conn = self.get_connection()
+        conn = self.get_connection(use_dict_cursor=False)
         
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         query = f"""
