@@ -1,6 +1,6 @@
 """
-Sistema de Indicadores e Hitos
-Modern web-based indicator and milestone tracking system
+Sistema de Indicadores e Hitos - Role-Based Version
+Modern web-based indicator and milestone tracking system with strict role separation
 """
 
 import streamlit as st
@@ -46,6 +46,7 @@ UNIDADES_ORGANIZACIONALES = [
     "PRE",
     "VPF"
 ]
+
 # Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
@@ -56,6 +57,8 @@ db = Database()
 if 'page' not in st.session_state:
     st.session_state.page = 'dashboard'
 
+
+# ==================== DASHBOARD ====================
 
 def render_dashboard():
     """Render the main dashboard with metrics and data table"""
@@ -137,7 +140,7 @@ def render_dashboard():
         tipo_indicador=filter_tipo
     )
     
-    # Apply responsable filter manually (since get_all_indicadores doesn't have this param yet)
+    # Apply responsable filter manually
     if filter_responsable:
         df = df[df['responsable'] == filter_responsable]
     
@@ -174,7 +177,7 @@ def render_dashboard():
         
         display_df.rename(columns=column_names, inplace=True)
         
-        # Convert date columns to datetime to avoid TypeError
+        # Convert date columns to datetime
         date_columns = ['Inicio', 'Fin']
         for col in date_columns:
             if col in display_df.columns:
@@ -189,440 +192,238 @@ def render_dashboard():
         st.info("No hay indicadores que coincidan con los filtros seleccionados.")
 
 
-def render_crear_indicador():
-    """Render the create indicator form"""
-    st.title("➕ Crear Indicador")
-    
-    # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Nuevo Indicador</div>', unsafe_allow_html=True)
-        
-        with st.form("crear_indicador_form", clear_on_submit=True):
-            # Basic Information Section
-            st.markdown("### 📋 Información Básica")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                id_estrategico = st.text_input(
-                    "ID Estratégico",
-                    placeholder="Ej: EST-2024-001",
-                    help="Identificador estratégico único"
-                )
-                
-                indicador = st.text_input(
-                    "Indicador *",
-                    placeholder="Ej: Incremento de ventas digitales",
-                    help="Nombre del indicador"
-                )
-                
-                tipo_indicador = st.selectbox(
-                    "Tipo Indicador *",
-                    options=TIPOS_INDICADOR,
-                    help="Tipo o categoría del indicador"
-                )
-                
-                año = st.number_input(
-                    "Año *",
-                    min_value=2020,
-                    max_value=2030,
-                    value=datetime.now().year,
-                    step=1
-                )
-            
-            with col2:
-                area = st.text_input(
-                    "Área",
-                    placeholder="Ej: Efectividad en el Desarrollo, Programacion Financiera y Reporting, Alianzas Estratégicas",
-                    help="Área responsable"
-                )
-                
-                unidad_organizacional = st.selectbox(
-                    "Unidad Organizacional",
-                    options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES,
-                    help="Unidad organizacional responsable"
-                )
-                
-                unidad_organizacional_colaboradora = st.selectbox(
-                    "Unidad Organizacional Colaboradora",
-                    options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES,
-                    help="Unidad que colabora"
-                )
-                
-                lineamientos_estrategicos = st.selectbox(
-                    "Lineamiento Estratégico *",
-                    options=LINEAMIENTOS_ESTRATEGICOS,
-                    help="Selecciona el lineamiento estratégico"
-                )
-                
-                responsable = st.text_input(
-                    "Responsable",
-                    placeholder="Ej: Juan Pérez",
-                    help="Persona responsable del indicador"
-                )
-            
-            st.markdown("---")
-            
-            # Goals and Metrics Section
-            st.markdown("### 🎯 Metas y Medidas")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                meta = st.number_input(
-                    "Meta (Valor Objetivo)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=0.1,
-                    help="Valor numérico objetivo a alcanzar (para calcular Avance%)"
-                )
-                
-                medida = st.text_input(
-                    "Medida",
-                    placeholder="Ej: Porcentaje, Cantidad, Monto",
-                    help="Unidad de medida"
-                )
-            
-            with col2:
-                avance = st.number_input(
-                    "Avance (Valor)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=0.1,
-                    help="Valor numérico del avance (para indicadores cuantitativos)"
-                )
-                
-                estado = st.selectbox(
-                    "Estado",
-                    ["Por comenzar", "En progreso", "Completado"]
-                )
-            st.markdown("---")
-            
-            # Dates Section
-            st.markdown("### 📅 Fechas")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                fecha_inicio = st.date_input(
-                    "Fecha Inicio",
-                    value=None,
-                    help="Fecha de inicio del indicador"
-                )
-            
-            with col2:
-                fecha_fin_original = st.date_input(
-                    "Fecha Fin Original",
-                    value=None,
-                    help="Fecha de fin planificada originalmente"
-                )
-            
-            with col3:
-                fecha_fin_actual = st.date_input(
-                    "Fecha Fin Actual",
-                    value=None,
-                    help="Fecha de fin actual o reprogramada"
-                )
-            
-            st.markdown("---")
-            
-            # Additional Information
-            st.markdown("### 📝 Información Adicional")
-            
-            tiene_hitos = st.checkbox(
-                "¿Tiene Hitos/Etapas?",
-                value=False,
-                help="Marca esta casilla si este indicador tiene hitos o etapas que gestionar"
-            )
-            
-            if tiene_hitos:
-                st.info("ℹ️ Podrás agregar y gestionar los hitos desde la sección '🎯 Gestionar Hitos' después de crear el indicador.")
-            
-            st.markdown("---")
-            
-            # Submit button
-            submitted = st.form_submit_button("✅ Crear Indicador", use_container_width=True)
-            
-            if submitted:
-                # Validate required fields
-                if not indicador or not tipo_indicador or not lineamientos_estrategicos:
-                    st.error("❌ Por favor completa los campos obligatorios: Indicador, Tipo Indicador y Lineamiento Estratégico")
-                else:
-                    # Create indicator
-                    try:
-                        record_id = db.create_indicador(
-                            id_estrategico=id_estrategico if id_estrategico else None,
-                            año=año,
-                            indicador=indicador,
-                            unidad_organizacional=unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
-                            unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
-                            area=area if area else None,
-                            lineamientos_estrategicos=lineamientos_estrategicos if lineamientos_estrategicos else None,
-                            meta=str(meta) if meta > 0 else None,
-                            medida=medida if medida else None,
-                            avance=avance,
-                            estado=estado,
-                            fecha_inicio=str(fecha_inicio) if fecha_inicio else None,
-                            fecha_fin_original=str(fecha_fin_original) if fecha_fin_original else None,
-                            fecha_fin_actual=str(fecha_fin_actual) if fecha_fin_actual else None,
-                            tipo_indicador=tipo_indicador,
-                            tiene_hitos=tiene_hitos,
-                            responsable=responsable if responsable else None
-                        )
-                        st.success(f"✅ Indicador creado exitosamente (ID: {record_id})")
-                        if tiene_hitos:
-                            st.info("💡 Ahora puedes agregar hitos en la sección '🎯 Gestionar Hitos'")
-                        st.balloons()
-                    except Exception as e:
-                        st.error(f"❌ Error al crear el indicador: {str(e)}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+# ==================== ADMIN PAGES ====================
 
-
-def render_actualizar_avance():
-    """Render the progress update interface for QUANTITATIVE indicators (without hitos)"""
-    st.title("🔄 Actualizar Avance Estratégico")
+def render_gestion_indicadores_admin():
+    """Admin page: Manage indicators structure (NO progress fields)"""
+    st.title("🛠️ Gestión de Indicadores (Admin)")
     
-    st.info("ℹ️ Esta sección es para **indicadores cuantitativos** (sin hitos). El avance % se calcula automáticamente: (Avance / Meta) × 100")
+    st.info("ℹ️ **Rol Admin**: Aquí defines la estructura de los indicadores. Los avances se reportan en la página 'Actualización Mensual'.")
     
-    # Get all indicators WITHOUT hitos
-    df = db.get_all_indicadores()
+    # Tabs for create and manage
+    tab1, tab2 = st.tabs(["➕ Crear Indicador", "📝 Editar/Eliminar"])
     
-    if len(df) == 0:
-        st.info("No hay indicadores registrados. Crea uno primero en la sección '➕ Crear Indicador'.")
-        return
-    
-    # Filter indicators WITHOUT hitos (quantitative)
-    df_sin_hitos = df[df['tiene_hitos'] == 0] if 'tiene_hitos' in df.columns else df
-    
-    if len(df_sin_hitos) == 0:
-        st.warning("⚠️ No hay indicadores cuantitativos (sin hitos). Los indicadores con hitos se actualizan automáticamente según el promedio de sus hitos.")
-        return
-    
-    # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Seleccionar Indicador</div>', unsafe_allow_html=True)
-        
-        # Create selection options
-        options = []
-        for _, row in df_sin_hitos.iterrows():
-            tipo = row.get('tipo_indicador', 'N/A')
-            nombre = row.get('indicador', 'Sin nombre')
-            area = row.get('area', 'Sin área')
-            año = row.get('año', '')
-            label = f"[{tipo}] {nombre} - {area} ({año})"
-            options.append((row['id'], label))
-        
-        selected_id = st.selectbox(
-            "Indicador Cuantitativo",
-            options=[opt[0] for opt in options],
-            format_func=lambda x: next(opt[1] for opt in options if opt[0] == x),
-            help="Selecciona el indicador cuantitativo que deseas actualizar"
-        )
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    if selected_id:
-        # Get selected indicator details
-        indicador = db.get_indicador_by_id(selected_id)
-        
-        if indicador:
-            # Display current status
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Estado Actual</div>', unsafe_allow_html=True)
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Avance Actual", f"{indicador.get('avance_porcentaje', 0)}%")
-                
-                with col2:
-                    st.markdown("**Estado:**")
-                    st.markdown(get_status_badge(indicador.get('estado', 'Por comenzar')), unsafe_allow_html=True)
-                
-                with col3:
-                    meta_valor = indicador.get('meta', 'No definida')
-                    st.metric("Meta", meta_valor)
-                
-                # Show additional info
-                st.markdown("---")
+    with tab1:
+        with st.container():
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-header">Nuevo Indicador</div>', unsafe_allow_html=True)
+            
+            with st.form("crear_indicador_form", clear_on_submit=True):
+                # Basic Information
+                st.markdown("### 📋 Información Básica")
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.write(f"**Avance (Valor):** {indicador.get('avance', 0)}")
-                    st.write(f"**Medida:** {indicador.get('medida', 'No definida')}")
+                    id_estrategico = st.text_input(
+                        "ID Estratégico",
+                        placeholder="Ej: EST-2024-001"
+                    )
+                    
+                    indicador = st.text_input(
+                        "Indicador *",
+                        placeholder="Ej: Incremento de ventas digitales"
+                    )
+                    
+                    tipo_indicador = st.selectbox(
+                        "Tipo Indicador *",
+                        options=TIPOS_INDICADOR
+                    )
+                    
+                    año = st.number_input(
+                        "Año *",
+                        min_value=2020,
+                        max_value=2030,
+                        value=datetime.now().year,
+                        step=1
+                    )
                 
                 with col2:
-                    st.write(f"**Fecha Inicio:** {indicador.get('fecha_inicio', 'No definida')}")
-                    st.write(f"**Fecha Fin Actual:** {indicador.get('fecha_fin_actual', 'No definida')}")
+                    area = st.selectbox(
+                        "Área",
+                        options=["Seleccionar..."] + AREAS
+                    )
+                    
+                    unidad_organizacional = st.selectbox(
+                        "Unidad Organizacional",
+                        options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES
+                    )
+                    
+                    unidad_organizacional_colaboradora = st.selectbox(
+                        "Unidad Organizacional Colaboradora",
+                        options=["Seleccionar..."] + UNIDADES_ORGANIZACIONALES
+                    )
+                    
+                    lineamientos_estrategicos = st.selectbox(
+                        "Lineamiento Estratégico *",
+                        options=LINEAMIENTOS_ESTRATEGICOS
+                    )
+                    
+                    responsable = st.text_input(
+                        "Responsable *",
+                        placeholder="Ej: Juan Pérez"
+                    )
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown("---")
+                
+                # Goals and Metrics
+                st.markdown("### 🎯 Metas y Medidas")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    meta = st.text_input(
+                        "Meta (Valor Objetivo)",
+                        placeholder="Ej: 100",
+                        help="Valor objetivo a alcanzar"
+                    )
+                    
+                    medida = st.text_input(
+                        "Medida",
+                        placeholder="Ej: Porcentaje, Cantidad, Monto"
+                    )
+                
+                with col2:
+                    estado = st.selectbox(
+                        "Estado Inicial",
+                        ["Por comenzar", "En progreso", "Completado"],
+                        index=0
+                    )
+                
+                st.markdown("---")
+                
+                # Dates
+                st.markdown("### 📅 Fechas Plan")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    fecha_inicio = st.date_input(
+                        "Fecha Inicio Plan",
+                        value=None
+                    )
+                
+                with col2:
+                    fecha_fin_original = st.date_input(
+                        "Fecha Fin Plan",
+                        value=None
+                    )
+                
+                with col3:
+                    fecha_fin_actual = st.date_input(
+                        "Fecha Fin Actual",
+                        value=None
+                    )
+                
+                st.markdown("---")
+                
+                # Additional Information
+                st.markdown("### 📝 Información Adicional")
+                
+                tiene_hitos = st.checkbox(
+                    "¿Tiene Hitos/Etapas?",
+                    value=True,
+                    help="Marca si este indicador se divide en hitos"
+                )
+                
+                if tiene_hitos:
+                    st.info("ℹ️ Podrás agregar hitos desde la sección '🎯 Gestión de Hitos'")
+                
+                st.markdown("---")
+                
+                # Submit button
+                submitted = st.form_submit_button("✅ Crear Indicador", use_container_width=True)
+                
+                if submitted:
+                    if not indicador or not tipo_indicador or not lineamientos_estrategicos or not responsable:
+                        st.error("❌ Por favor completa los campos obligatorios")
+                    else:
+                        try:
+                            record_id = db.create_indicador(
+                                id_estrategico=id_estrategico if id_estrategico else None,
+                                año=año,
+                                indicador=indicador,
+                                unidad_organizacional=unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
+                                unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
+                                area=area if area != "Seleccionar..." else None,
+                                lineamientos_estrategicos=lineamientos_estrategicos,
+                                meta=meta if meta else None,
+                                medida=medida if medida else None,
+                                estado=estado,
+                                fecha_inicio=str(fecha_inicio) if fecha_inicio else None,
+                                fecha_fin_original=str(fecha_fin_original) if fecha_fin_original else None,
+                                fecha_fin_actual=str(fecha_fin_actual) if fecha_fin_actual else None,
+                                tipo_indicador=tipo_indicador,
+                                tiene_hitos=tiene_hitos,
+                                responsable=responsable
+                            )
+                            st.success(f"✅ Indicador creado exitosamente (ID: {record_id})")
+                            if tiene_hitos:
+                                st.info("💡 Ahora puedes agregar hitos en '🎯 Gestión de Hitos'")
+                            st.balloons()
+                        except Exception as e:
+                            st.error(f"❌ Error al crear el indicador: {str(e)}")
             
-            # Update form
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab2:
+        # Delete indicator section
+        df = db.get_all_indicadores()
+        
+        if len(df) == 0:
+            st.info("No hay indicadores registrados.")
+        else:
             with st.container():
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Actualizar Progreso</div>', unsafe_allow_html=True)
+                st.markdown('<div class="card-header">Eliminar Indicador</div>', unsafe_allow_html=True)
                 
-                with st.form("actualizar_avance_form"):
-                    col1, col2 = st.columns(2)
+                st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
+                
+                options = []
+                for _, row in df.iterrows():
+                    label = f"[{row.get('tipo_indicador', 'N/A')}] {row.get('indicador', 'Sin nombre')} - {row.get('area', 'Sin área')} ({row.get('año', '')})"
+                    options.append((row['id'], label))
+                
+                selected_id = st.selectbox(
+                    "Seleccionar Indicador a Eliminar",
+                    options=[opt[0] for opt in options],
+                    format_func=lambda x: next(opt[1] for opt in options if opt[0] == x)
+                )
+                
+                if selected_id:
+                    indicador = db.get_indicador_by_id(selected_id)
                     
-                    with col1:
-                        # Update meta if needed
-                        current_meta = indicador.get('meta', '0')
-                        try:
-                            meta_value = float(current_meta) if current_meta else 0.0
-                        except (ValueError, TypeError):
-                            meta_value = 0.0
+                    if indicador:
+                        st.markdown("---")
+                        st.markdown("**Detalles:**")
+                        st.write(f"- **Indicador:** {indicador.get('indicador', 'N/A')}")
+                        st.write(f"- **Responsable:** {indicador.get('responsable', 'N/A')}")
+                        st.write(f"- **Avance:** {indicador.get('avance_porcentaje', 0)}%")
                         
-                        nueva_meta = st.number_input(
-                            "Meta (Valor Objetivo)",
-                            min_value=0.0,
-                            value=meta_value,
-                            step=0.1,
-                            help="Valor objetivo a alcanzar"
-                        )
-                    
-                    with col2:
-                        # Update avance value
-                        nuevo_avance_valor = st.number_input(
-                            "Avance (Valor Actual)",
-                            min_value=0.0,
-                            value=float(indicador.get('avance', 0)),
-                            step=0.1,
-                            help="Valor actual alcanzado"
-                        )
-                    
-                    # Calculate percentage automatically for preview
-                    try:
-                        meta_num = float(nueva_meta) if nueva_meta else 1
-                        if meta_num > 0:
-                            nuevo_avance_porcentaje = min(100, int((nuevo_avance_valor / meta_num) * 100))
-                        else:
-                            nuevo_avance_porcentaje = 0
-                    except (ValueError, ZeroDivisionError):
-                        nuevo_avance_porcentaje = 0
-                    
-                    st.markdown("---")
-                    st.info(f"📊 **Avance Calculado:** {nuevo_avance_porcentaje}% = ({nuevo_avance_valor} / {nueva_meta}) × 100")
-                    
-                    # Preview new status
-                    if nuevo_avance_porcentaje == 0:
-                        nuevo_estado = "Por comenzar"
-                    elif nuevo_avance_porcentaje < 100:
-                        nuevo_estado = "En progreso"
-                    else:
-                        nuevo_estado = "Completado"
-                    
-                    st.info(f"ℹ️ El estado se actualizará automáticamente a: **{nuevo_estado}**")
-                    
-                    st.markdown("---")
-                    
-                    # Submit button
-                    submitted = st.form_submit_button("💾 Guardar Cambios", use_container_width=True)
-                    
-                    if submitted:
-                        try:
-                            # Update indicator using the database method (calculates avance_porcentaje automatically)
-                            success = db.update_avance(
-                                indicador_id=selected_id,
-                                nuevo_avance=nuevo_avance_valor,
-                                nueva_meta=str(nueva_meta) if nueva_meta > 0 else None,
-                                nuevo_estado=nuevo_estado
-                            )
-                            
-                            if success:
-                                st.success(f"✅ Indicador actualizado: {nuevo_avance_porcentaje}% ({nuevo_avance_valor}/{nueva_meta})")
-                                st.rerun()
-                            else:
-                                st.error("❌ Error al actualizar el indicador")
-                        except Exception as e:
-                            st.error(f"❌ Error al actualizar: {str(e)}")
+                        st.markdown("---")
+                        
+                        if st.button("🗑️ Eliminar", type="primary", use_container_width=True):
+                            try:
+                                if db.delete_indicador(selected_id):
+                                    st.success("✅ Indicador eliminado exitosamente")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Error al eliminar el indicador")
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
                 
                 st.markdown('</div>', unsafe_allow_html=True)
 
 
-def render_gestion():
-    """Render the management/deletion interface"""
-    st.title("⚙️ Gestión de Indicadores")
+def render_gestion_hitos_admin():
+    """Admin page: Manage hitos structure (NO progress fields)"""
+    st.title("🎯 Gestión de Hitos (Admin)")
     
-    # Get all indicators
+    st.info("ℹ️ **Rol Admin**: Aquí defines la estructura de los hitos. Los avances se reportan en la página 'Actualización Mensual'.")
+    
+    # Get indicators with hitos
     df = db.get_all_indicadores()
-    
-    if len(df) == 0:
-        st.info("No hay indicadores registrados.")
-        return
-    
-    # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Eliminar Indicador</div>', unsafe_allow_html=True)
-        
-        st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
-        
-        # Create selection options
-        options = []
-        for _, row in df.iterrows():
-            tipo = row.get('tipo_indicador', 'N/A')
-            nombre = row.get('indicador', 'Sin nombre')
-            area = row.get('area', 'Sin área')
-            año = row.get('año', '')
-            label = f"[{tipo}] {nombre} - {area} ({año})"
-            options.append((row['id'], label))
-        
-        selected_id = st.selectbox(
-            "Seleccionar Indicador a Eliminar",
-            options=[opt[0] for opt in options],
-            format_func=lambda x: next(opt[1] for opt in options if opt[0] == x)
-        )
-        
-        if selected_id:
-            indicador = db.get_indicador_by_id(selected_id)
-            
-            if indicador:
-                st.markdown("---")
-                st.markdown("**Detalles del indicador:**")
-                st.write(f"- **Indicador:** {indicador.get('indicador', 'N/A')}")
-                st.write(f"- **Área:** {indicador.get('area', 'N/A')}")
-                st.write(f"- **Unidad Organizacional:** {indicador.get('unidad_organizacional', 'N/A')}")
-                st.write(f"- **Avance:** {indicador.get('avance_porcentaje', 0)}%")
-                
-                st.markdown("---")
-                
-                col1, col2 = st.columns([3, 1])
-                
-                with col2:
-                    if st.button("🗑️ Eliminar", type="primary", use_container_width=True):
-                        try:
-                            success = db.delete_indicador(selected_id)
-                            if success:
-                                st.success("✅ Indicador eliminado exitosamente")
-                                st.rerun()
-                            else:
-                                st.error("❌ Error al eliminar el indicador")
-                        except Exception as e:
-                            st.error(f"❌ Error: {str(e)}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-def render_gestionar_hitos():
-    """Render the hitos management interface for QUALITATIVE indicators"""
-    st.title("🎯 Gestionar Hitos")
-    
-    st.info("ℹ️ Esta sección es para **indicadores cualitativos** (con hitos). El avance del indicador se calcula automáticamente como el promedio de sus hitos.")
-    
-    # Get all indicators that have hitos
-    df = db.get_all_indicadores()
-    
-    if len(df) == 0:
-        st.info("No hay indicadores registrados.")
-        return
-    
-    # Filter indicators with hitos
     df_con_hitos = df[df['tiene_hitos'] == 1] if 'tiene_hitos' in df.columns else df
     
     if len(df_con_hitos) == 0:
-        st.warning("⚠️ No hay indicadores con hitos habilitados. Crea un indicador y marca '¿Tiene Hitos/Etapas?' para comenzar.")
+        st.warning("⚠️ No hay indicadores con hitos habilitados.")
         return
     
     # Select indicator
@@ -632,18 +433,13 @@ def render_gestionar_hitos():
         
         options = []
         for _, row in df_con_hitos.iterrows():
-            tipo = row.get('tipo_indicador', 'N/A')
-            nombre = row.get('indicador', 'Sin nombre')
-            año = row.get('año', '')
-            avance = row.get('avance_porcentaje', 0)
-            label = f"[{tipo}] {nombre} ({año}) - {avance}%"
+            label = f"[{row.get('tipo_indicador', 'N/A')}] {row.get('indicador', 'Sin nombre')} ({row.get('año', '')})"
             options.append((row['id'], label))
         
         selected_id = st.selectbox(
-            "Indicador Cualitativo",
+            "Indicador",
             options=[opt[0] for opt in options],
-            format_func=lambda x: next(opt[1] for opt in options if opt[0] == x),
-            help="Selecciona el indicador para gestionar sus hitos"
+            format_func=lambda x: next(opt[1] for opt in options if opt[0] == x)
         )
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -651,29 +447,6 @@ def render_gestionar_hitos():
     if selected_id:
         # Get hitos for this indicator
         hitos_df = db.get_hitos_by_indicador(selected_id)
-        
-        # Show indicator progress (calculated from hitos)
-        indicador = db.get_indicador_by_id(selected_id)
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Avance del Indicador (Calculado)</div>', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Avance Total", f"{indicador.get('avance_porcentaje', 0)}%")
-            
-            with col2:
-                st.markdown("**Estado:**")
-                st.markdown(get_status_badge(indicador.get('estado', 'Por comenzar')), unsafe_allow_html=True)
-            
-            with col3:
-                st.metric("Total Hitos", len(hitos_df))
-            
-            if len(hitos_df) > 0:
-                st.info(f"📊 El avance se calcula automáticamente como el promedio de los {len(hitos_df)} hitos")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
         
         # Show existing hitos
         with st.container():
@@ -688,17 +461,20 @@ def render_gestionar_hitos():
                         st.write(f"**{hito['nombre']}**")
                         if hito.get('descripcion'):
                             st.caption(hito['descripcion'])
+                        if hito.get('responsable'):
+                            st.caption(f"👤 {hito['responsable']}")
                     
                     with col2:
                         st.markdown(get_status_badge(hito['estado']), unsafe_allow_html=True)
                     
                     with col3:
-                        st.write(f"Avance: {hito['avance_porcentaje']}%")
+                        # Show latest reported progress
+                        ultimo_avance = hito.get('ultimo_avance_reportado', hito.get('avance_porcentaje', 0))
+                        st.write(f"Último avance: {ultimo_avance}%")
                     
                     with col4:
                         if st.button("🗑️", key=f"del_hito_{hito['id']}", help="Eliminar hito"):
                             if db.delete_hito(hito['id']):
-                                # Update indicator progress
                                 db.update_indicador_from_hitos(selected_id)
                                 st.success("Hito eliminado")
                                 st.rerun()
@@ -709,7 +485,7 @@ def render_gestionar_hitos():
             
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Create new hito (SIMPLIFIED FORM)
+        # Create new hito
         with st.container():
             st.markdown('<div class="card">', unsafe_allow_html=True)
             st.markdown('<div class="card-header">➕ Agregar Nuevo Hito</div>', unsafe_allow_html=True)
@@ -717,8 +493,7 @@ def render_gestionar_hitos():
             with st.form("crear_hito_form"):
                 nombre_hito = st.text_input(
                     "Nombre del Hito *",
-                    placeholder="Ej: Fase 1 - Planificación",
-                    help="Nombre descriptivo del hito"
+                    placeholder="Ej: Fase 1 - Planificación"
                 )
                 
                 descripcion_hito = st.text_area(
@@ -731,122 +506,462 @@ def render_gestionar_hitos():
                 
                 with col1:
                     fecha_inicio_hito = st.date_input(
-                        "Fecha Inicio",
-                        value=None,
-                        help="Fecha de inicio del hito"
+                        "Fecha Inicio Plan",
+                        value=None
+                    )
+                    
+                    responsable_hito = st.text_input(
+                        "Responsable *",
+                        placeholder="Ej: María García"
                     )
                 
                 with col2:
                     fecha_fin_planificada_hito = st.date_input(
-                        "Fecha Fin Planificada",
-                        value=None,
-                        help="Fecha planificada de finalización"
+                        "Fecha Fin Plan",
+                        value=None
                     )
-                
-                avance_hito = st.slider(
-                    "Avance % *",
-                    min_value=0,
-                    max_value=100,
-                    value=0,
-                    step=5,
-                    help="Porcentaje de avance del hito"
-                )
                 
                 submitted = st.form_submit_button("✅ Agregar Hito", use_container_width=True)
                 
                 if submitted:
-                    if not nombre_hito:
-                        st.error("❌ El nombre del hito es obligatorio")
+                    if not nombre_hito or not responsable_hito:
+                        st.error("❌ El nombre y responsable del hito son obligatorios")
                     else:
                         try:
-                            # Determine status
-                            if avance_hito == 0:
-                                estado_hito = "Por comenzar"
-                            elif avance_hito < 100:
-                                estado_hito = "En progreso"
-                            else:
-                                estado_hito = "Completado"
-                            
                             hito_id = db.create_hito(
                                 indicador_id=selected_id,
                                 nombre=nombre_hito,
                                 descripcion=descripcion_hito if descripcion_hito else None,
                                 fecha_inicio=str(fecha_inicio_hito) if fecha_inicio_hito else None,
                                 fecha_fin_planificada=str(fecha_fin_planificada_hito) if fecha_fin_planificada_hito else None,
-                                avance_porcentaje=avance_hito,
-                                estado=estado_hito,
-                                orden=len(hitos_df) + 1
+                                avance_porcentaje=0,
+                                estado="Por comenzar",
+                                orden=len(hitos_df) + 1,
+                                responsable=responsable_hito
                             )
                             
-                            # Update indicator progress automatically
-                            db.update_indicador_from_hitos(selected_id)
-                            
                             st.success(f"✅ Hito creado exitosamente (ID: {hito_id})")
-                            st.info("📊 El avance del indicador se actualizó automáticamente")
+                            st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error al crear el hito: {str(e)}")
             
             st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_gestion_actividades_admin():
+    """Admin page: Manage actividades structure (NO progress fields)"""
+    st.title("📋 Gestión de Actividades (Admin)")
+    
+    st.info("ℹ️ **Rol Admin**: Aquí defines las actividades bajo cada hito. Los avances se reportan en la página 'Actualización Mensual'.")
+    
+    # Get all hitos
+    df_indicadores = db.get_all_indicadores()
+    df_con_hitos = df_indicadores[df_indicadores['tiene_hitos'] == 1] if 'tiene_hitos' in df_indicadores.columns else df_indicadores
+    
+    if len(df_con_hitos) == 0:
+        st.warning("⚠️ No hay indicadores con hitos.")
+        return
+    
+    # Select indicator first
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">Seleccionar Indicador</div>', unsafe_allow_html=True)
         
-        # Update hito progress
-        if len(hitos_df) > 0:
+        options_ind = []
+        for _, row in df_con_hitos.iterrows():
+            label = f"{row.get('indicador', 'Sin nombre')} ({row.get('año', '')})"
+            options_ind.append((row['id'], label))
+        
+        selected_ind_id = st.selectbox(
+            "Indicador",
+            options=[opt[0] for opt in options_ind],
+            format_func=lambda x: next(opt[1] for opt in options_ind if opt[0] == x)
+        )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    if selected_ind_id:
+        hitos_df = db.get_hitos_by_indicador(selected_ind_id)
+        
+        if len(hitos_df) == 0:
+            st.warning("⚠️ Este indicador no tiene hitos. Crea hitos primero en 'Gestión de Hitos'.")
+            return
+        
+        # Select hito
+        with st.container():
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-header">Seleccionar Hito</div>', unsafe_allow_html=True)
+            
+            options_hito = []
+            for _, row in hitos_df.iterrows():
+                label = f"{row.get('nombre', 'Sin nombre')}"
+                options_hito.append((row['id'], label))
+            
+            selected_hito_id = st.selectbox(
+                "Hito",
+                options=[opt[0] for opt in options_hito],
+                format_func=lambda x: next(opt[1] for opt in options_hito if opt[0] == x)
+            )
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        if selected_hito_id:
+            # Get actividades for this hito
+            actividades_df = db.get_actividades_by_hito(selected_hito_id)
+            
+            # Show existing actividades
             with st.container():
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">🔄 Actualizar Avance de Hito</div>', unsafe_allow_html=True)
+                st.markdown('<div class="card-header">Actividades Existentes</div>', unsafe_allow_html=True)
                 
-                hito_options = [(row['id'], f"{row['nombre']} ({row['avance_porcentaje']}%)") 
-                               for _, row in hitos_df.iterrows()]
+                if len(actividades_df) > 0:
+                    for _, actividad in actividades_df.iterrows():
+                        col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**{actividad['descripcion_actividad']}**")
+                            if actividad.get('responsable'):
+                                st.caption(f"👤 {actividad['responsable']}")
+                        
+                        with col2:
+                            st.markdown(get_status_badge(actividad['estado_actividad']), unsafe_allow_html=True)
+                        
+                        with col3:
+                            ultimo_avance = actividad.get('ultimo_avance_reportado', 0)
+                            st.write(f"Último avance: {ultimo_avance}%")
+                        
+                        with col4:
+                            if st.button("🗑️", key=f"del_act_{actividad['id']}", help="Eliminar actividad"):
+                                if db.delete_actividad(actividad['id']):
+                                    st.success("Actividad eliminada")
+                                    st.rerun()
+                        
+                        st.markdown("---")
+                else:
+                    st.info("No hay actividades creadas para este hito.")
                 
-                selected_hito_id = st.selectbox(
-                    "Seleccionar Hito",
-                    options=[opt[0] for opt in hito_options],
-                    format_func=lambda x: next(opt[1] for opt in hito_options if opt[0] == x)
-                )
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Create new actividad
+            with st.container():
+                st.markdown('<div class="card">', unsafe_allow_html=True)
+                st.markdown('<div class="card-header">➕ Agregar Nueva Actividad</div>', unsafe_allow_html=True)
                 
-                if selected_hito_id:
-                    hito_actual = hitos_df[hitos_df['id'] == selected_hito_id].iloc[0]
+                with st.form("crear_actividad_form"):
+                    descripcion_actividad = st.text_input(
+                        "Descripción de la Actividad *",
+                        placeholder="Ej: Definir alcance del proyecto"
+                    )
                     
-                    with st.form("actualizar_hito_form"):
-                        nuevo_avance_hito = st.slider(
-                            "Nuevo Avance (%)",
-                            min_value=0,
-                            max_value=100,
-                            value=int(hito_actual['avance_porcentaje']),
-                            step=5
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        fecha_inicio_plan = st.date_input(
+                            "Fecha Inicio Plan",
+                            value=None
                         )
                         
-                        # Preview new status
-                        if nuevo_avance_hito == 0:
-                            nuevo_estado_hito = "Por comenzar"
-                        elif nuevo_avance_hito < 100:
-                            nuevo_estado_hito = "En progreso"
+                        responsable_actividad = st.text_input(
+                            "Responsable *",
+                            placeholder="Ej: Carlos López"
+                        )
+                    
+                    with col2:
+                        fecha_fin_plan = st.date_input(
+                            "Fecha Fin Plan",
+                            value=None
+                        )
+                    
+                    submitted = st.form_submit_button("✅ Agregar Actividad", use_container_width=True)
+                    
+                    if submitted:
+                        if not descripcion_actividad or not responsable_actividad:
+                            st.error("❌ La descripción y responsable son obligatorios")
                         else:
-                            nuevo_estado_hito = "Completado"
-                        
-                        st.info(f"ℹ️ El estado del hito se actualizará a: **{nuevo_estado_hito}**")
-                        st.info(f"📊 El avance del indicador se recalculará automáticamente")
-                        
-                        submitted_update = st.form_submit_button("💾 Actualizar Hito", use_container_width=True)
-                        
-                        if submitted_update:
                             try:
-                                if db.update_hito_avance(selected_hito_id, nuevo_avance_hito):
-                                    # Update indicator progress automatically
-                                    db.update_indicador_from_hitos(selected_id)
-                                    
-                                    st.success(f"✅ Hito actualizado a {nuevo_avance_hito}%")
-                                    st.success("📊 Avance del indicador actualizado automáticamente")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Error al actualizar el hito")
+                                actividad_id = db.create_actividad(
+                                    hito_id=selected_hito_id,
+                                    descripcion_actividad=descripcion_actividad,
+                                    fecha_inicio_plan=str(fecha_inicio_plan) if fecha_inicio_plan else None,
+                                    fecha_fin_plan=str(fecha_fin_plan) if fecha_fin_plan else None,
+                                    responsable=responsable_actividad,
+                                    estado_actividad="Por comenzar"
+                                )
+                                
+                                st.success(f"✅ Actividad creada exitosamente (ID: {actividad_id})")
+                                st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
+                                st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Error: {str(e)}")
+                                st.error(f"❌ Error al crear la actividad: {str(e)}")
                 
                 st.markdown('</div>', unsafe_allow_html=True)
 
 
-# Sidebar navigation
+# ==================== OWNER PAGE ====================
+
+def render_actualizacion_mensual_owner():
+    """⭐ Owner page: Monthly progress reporting (MAIN OWNER PAGE)"""
+    st.title("📅 Actualización Mensual (Owner)")
+    
+    current_month = datetime.now().strftime('%Y-%m')
+    st.info(f"ℹ️ **Rol Owner**: Reporta el avance del mes actual ({current_month}). Solo puedes reportar una vez por mes.")
+    
+    # Get list of all responsables
+    responsables = db.get_unique_values('responsable')
+    
+    if not responsables:
+        st.warning("⚠️ No hay responsables asignados en el sistema.")
+        return
+    
+    # Select responsable
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">Seleccionar Responsable</div>', unsafe_allow_html=True)
+        
+        selected_responsable = st.selectbox(
+            "Responsable",
+            options=responsables,
+            help="Selecciona el responsable para ver sus hitos y actividades"
+        )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    if selected_responsable:
+        # Get hitos and actividades for this responsable
+        hitos_df = db.get_hitos_by_responsable(selected_responsable)
+        actividades_df = db.get_actividades_by_responsable(selected_responsable)
+        
+        # Filter by responsable (since get_hitos_by_responsable returns all hitos)
+        if 'responsable' in hitos_df.columns:
+            hitos_df = hitos_df[hitos_df['responsable'] == selected_responsable]
+        
+        total_items = len(hitos_df) + len(actividades_df)
+        
+        if total_items == 0:
+            st.info(f"ℹ️ No hay hitos ni actividades asignadas a {selected_responsable}")
+            return
+        
+        st.markdown(f"**Total de items asignados:** {total_items} ({len(hitos_df)} hitos, {len(actividades_df)} actividades)")
+        
+        # Form to report monthly progress
+        with st.container():
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f'<div class="card-header">Reporte Mensual - {current_month}</div>', unsafe_allow_html=True)
+            
+            with st.form("reporte_mensual_form"):
+                reportes = []
+                
+                # Show hitos
+                if len(hitos_df) > 0:
+                    st.markdown("### 🎯 Hitos")
+                    
+                    for idx, hito in hitos_df.iterrows():
+                        st.markdown(f"**{hito['nombre']}**")
+                        st.caption(f"Indicador: {hito.get('nombre_indicador', 'N/A')}")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            ultimo_avance = hito.get('ultimo_avance_reportado', 0)
+                            st.info(f"📊 Último avance reportado: {ultimo_avance}%")
+                        
+                        with col2:
+                            nuevo_avance = st.slider(
+                                f"Avance % del mes {current_month}",
+                                min_value=0,
+                                max_value=100,
+                                value=int(ultimo_avance),
+                                step=5,
+                                key=f"hito_{hito['id']}"
+                            )
+                            
+                            reportes.append({
+                                'entidad': 'hito',
+                                'id_entidad': hito['id'],
+                                'avance': nuevo_avance,
+                                'nombre': hito['nombre']
+                            })
+                        
+                        st.markdown("---")
+                
+                # Show actividades
+                if len(actividades_df) > 0:
+                    st.markdown("### 📋 Actividades")
+                    
+                    for idx, actividad in actividades_df.iterrows():
+                        st.markdown(f"**{actividad['descripcion_actividad']}**")
+                        st.caption(f"Hito: {actividad.get('nombre_hito', 'N/A')} | Indicador: {actividad.get('nombre_indicador', 'N/A')}")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            ultimo_avance = actividad.get('ultimo_avance_reportado', 0)
+                            st.info(f"📊 Último avance reportado: {ultimo_avance}%")
+                        
+                        with col2:
+                            nuevo_avance = st.slider(
+                                f"Avance % del mes {current_month}",
+                                min_value=0,
+                                max_value=100,
+                                value=int(ultimo_avance),
+                                step=5,
+                                key=f"actividad_{actividad['id']}"
+                            )
+                            
+                            reportes.append({
+                                'entidad': 'actividad',
+                                'id_entidad': actividad['id'],
+                                'avance': nuevo_avance,
+                                'nombre': actividad['descripcion_actividad']
+                            })
+                        
+                        st.markdown("---")
+                
+                # Submit button
+                submitted = st.form_submit_button("💾 Guardar Reporte Mensual", use_container_width=True)
+                
+                if submitted:
+                    try:
+                        success_count = 0
+                        already_reported = []
+                        errors = []
+                        
+                        for reporte in reportes:
+                            result = db.registrar_avance_mensual(
+                                entidad=reporte['entidad'],
+                                id_entidad=reporte['id_entidad'],
+                                avance_reportado=reporte['avance'],
+                                usuario=selected_responsable,
+                                mes=current_month
+                            )
+                            
+                            if result:
+                                success_count += 1
+                            else:
+                                already_reported.append(reporte['nombre'])
+                        
+                        # Update indicator progress for all affected indicators
+                        # Get unique indicator IDs from hitos
+                        if len(hitos_df) > 0:
+                            for indicador_id in hitos_df['indicador_id'].unique():
+                                db.update_indicador_from_hitos(indicador_id)
+                        
+                        if success_count > 0:
+                            st.success(f"✅ {success_count} reportes guardados exitosamente")
+                            st.info("📊 Los avances de los indicadores se actualizaron automáticamente")
+                        
+                        if already_reported:
+                            st.warning(f"⚠️ Los siguientes items ya fueron reportados este mes: {', '.join(already_reported)}")
+                        
+                        if success_count > 0:
+                            st.balloons()
+                            st.rerun()
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error al guardar reportes: {str(e)}")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ==================== SEGUIMIENTO PAGE ====================
+
+def render_vista_seguimiento():
+    """Read-only tracking view with hierarchy and historical data"""
+    st.title("🔍 Vista de Seguimiento")
+    
+    st.info("ℹ️ Vista de solo lectura con jerarquía completa y avances calculados automáticamente")
+    
+    # Get all indicators
+    df = db.get_all_indicadores()
+    
+    if len(df) == 0:
+        st.info("No hay indicadores registrados.")
+        return
+    
+    # Filters
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        responsables = ["Todos"] + db.get_unique_values('responsable')
+        selected_responsable = st.selectbox("Filtrar por Responsable", responsables)
+    
+    with col2:
+        años = ["Todos"] + [str(y) for y in db.get_unique_values('año')]
+        selected_año = st.selectbox("Filtrar por Año", años)
+    
+    # Apply filters
+    if selected_responsable != "Todos":
+        df = df[df['responsable'] == selected_responsable]
+    
+    if selected_año != "Todos":
+        df = df[df['año'] == int(selected_año)]
+    
+    st.markdown("---")
+    
+    # Display indicators with hierarchy
+    for _, indicador in df.iterrows():
+        with st.expander(f"📊 {indicador['indicador']} - {indicador['avance_porcentaje']}%", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Avance", f"{indicador['avance_porcentaje']}%")
+            
+            with col2:
+                st.markdown("**Estado:**")
+                st.markdown(get_status_badge(indicador['estado']), unsafe_allow_html=True)
+            
+            with col3:
+                st.write(f"**Responsable:** {indicador.get('responsable', 'N/A')}")
+            
+            # Show hitos if exists
+            if indicador.get('tiene_hitos'):
+                hitos_df = db.get_hitos_by_indicador(indicador['id'])
+                
+                if len(hitos_df) > 0:
+                    st.markdown("### 🎯 Hitos")
+                    
+                    for _, hito in hitos_df.iterrows():
+                        col1, col2, col3 = st.columns([3, 1, 1])
+                        
+                        with col1:
+                            st.write(f"**{hito['nombre']}**")
+                            if hito.get('responsable'):
+                                st.caption(f"👤 {hito['responsable']}")
+                        
+                        with col2:
+                            ultimo_avance = hito.get('ultimo_avance_reportado', hito.get('avance_porcentaje', 0))
+                            st.write(f"{ultimo_avance}%")
+                        
+                        with col3:
+                            st.markdown(get_status_badge(hito['estado']), unsafe_allow_html=True)
+                        
+                        # Show actividades for this hito
+                        actividades_df = db.get_actividades_by_hito(hito['id'])
+                        
+                        if len(actividades_df) > 0:
+                            st.markdown("**📋 Actividades:**")
+                            
+                            for _, actividad in actividades_df.iterrows():
+                                col1, col2, col3 = st.columns([3, 1, 1])
+                                
+                                with col1:
+                                    st.caption(f"  • {actividad['descripcion_actividad']}")
+                                    if actividad.get('responsable'):
+                                        st.caption(f"    👤 {actividad['responsable']}")
+                                
+                                with col2:
+                                    ultimo_avance_act = actividad.get('ultimo_avance_reportado', 0)
+                                    st.caption(f"{ultimo_avance_act}%")
+                                
+                                with col3:
+                                    st.markdown(get_status_badge(actividad['estado_actividad']), unsafe_allow_html=True)
+                        
+                        st.markdown("---")
+
+
+# ==================== SIDEBAR NAVIGATION ====================
+
 with st.sidebar:
     st.title("🎯 Sistema de Indicadores")
     st.markdown("---")
@@ -855,41 +970,42 @@ with st.sidebar:
     if st.button("📊 Dashboard", use_container_width=True):
         st.session_state.page = 'dashboard'
     
-    st.markdown("### ➕ Crear")
+    st.markdown("### 🛠️ Administración (Admin)")
     
-    if st.button("📝 Crear Indicador", use_container_width=True):
-        st.session_state.page = 'crear_indicador'
+    if st.button("📝 Gestión de Indicadores", use_container_width=True):
+        st.session_state.page = 'gestion_indicadores'
     
-    if st.button("🎯 Crear Hito", use_container_width=True):
-        st.session_state.page = 'crear_hito'
+    if st.button("🎯 Gestión de Hitos", use_container_width=True):
+        st.session_state.page = 'gestion_hitos'
     
-    st.markdown("### 🔄 Actualizar")
+    if st.button("📋 Gestión de Actividades", use_container_width=True):
+        st.session_state.page = 'gestion_actividades'
     
-    if st.button("📈 Actualizar Indicadores", use_container_width=True):
-        st.session_state.page = 'actualizar_indicadores'
+    st.markdown("### 👤 Reporte (Owner)")
     
-    if st.button("🎯 Actualizar Hitos", use_container_width=True):
-        st.session_state.page = 'actualizar_hitos'
+    if st.button("📅 Actualización Mensual ⭐", use_container_width=True):
+        st.session_state.page = 'actualizacion_mensual'
     
-    st.markdown("### ⚙️ Administración")
+    st.markdown("### 📈 Seguimiento")
     
-    if st.button("🗑️ Gestión", use_container_width=True):
-        st.session_state.page = 'gestion'
+    if st.button("🔍 Vista de Seguimiento", use_container_width=True):
+        st.session_state.page = 'vista_seguimiento'
     
     st.markdown("---")
-    st.caption("v2.1.0 - Sistema de Indicadores e Hitos")
+    st.caption("v3.0.0 - Sistema de Indicadores con Roles")
 
 
-# Render selected page
+# ==================== RENDER SELECTED PAGE ====================
+
 if st.session_state.page == 'dashboard':
     render_dashboard()
-elif st.session_state.page == 'crear_indicador':
-    render_crear_indicador()
-elif st.session_state.page == 'crear_hito':
-    render_gestionar_hitos()
-elif st.session_state.page == 'actualizar_indicadores':
-    render_actualizar_avance()
-elif st.session_state.page == 'actualizar_hitos':
-    render_gestionar_hitos()
-elif st.session_state.page == 'gestion':
-    render_gestion()
+elif st.session_state.page == 'gestion_indicadores':
+    render_gestion_indicadores_admin()
+elif st.session_state.page == 'gestion_hitos':
+    render_gestion_hitos_admin()
+elif st.session_state.page == 'gestion_actividades':
+    render_gestion_actividades_admin()
+elif st.session_state.page == 'actualizacion_mensual':
+    render_actualizacion_mensual_owner()
+elif st.session_state.page == 'vista_seguimiento':
+    render_vista_seguimiento()

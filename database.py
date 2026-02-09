@@ -487,7 +487,8 @@ class Database:
         fecha_fin_real: str = None,
         avance_porcentaje: int = 0,
         estado: str = "Por comenzar",
-        orden: int = None
+        orden: int = None,
+        responsable: str = None
     ) -> int:
         """Create a new hito for an indicator"""
         conn = self.get_connection()
@@ -497,11 +498,11 @@ class Database:
         cursor.execute(f"""
             INSERT INTO hitos 
             (indicador_id, nombre, descripcion, fecha_inicio, fecha_fin_planificada,
-             fecha_fin_real, avance_porcentaje, estado, orden)
+             fecha_fin_real, avance_porcentaje, estado, orden, responsable)
             VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder},
-                    {placeholder}, {placeholder}, {placeholder}, {placeholder})
+                    {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
         """, (indicador_id, nombre, descripcion, fecha_inicio, fecha_fin_planificada,
-              fecha_fin_real, avance_porcentaje, estado, orden))
+              fecha_fin_real, avance_porcentaje, estado, orden, responsable))
         
         hito_id = cursor.lastrowid
         conn.commit()
@@ -561,24 +562,39 @@ class Database:
         
         return success
     
+    
     def update_indicador_from_hitos(self, indicador_id: int) -> bool:
         """
         Update indicator progress based on average of its hitos
         For qualitative indicators (with hitos)
+        Uses the LATEST monthly report for each hito
         """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Get average progress from hitos
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        
+        # Get average progress from hitos using latest monthly reports
         cursor.execute(f"""
-            SELECT AVG(avance_porcentaje) as avg_avance
-            FROM hitos
-            WHERE indicador_id = {placeholder}
+            SELECT h.id, COALESCE(
+                (SELECT avance_reportado 
+                 FROM avance_mensual 
+                 WHERE entidad = 'hito' AND id_entidad = h.id 
+                 ORDER BY mes DESC LIMIT 1), 
+                h.avance_porcentaje
+            ) as ultimo_avance
+            FROM hitos h
+            WHERE h.indicador_id = {placeholder}
         """, (indicador_id,))
         
-        result = cursor.fetchone()
-        avg_avance = int(result[0]) if result and result[0] is not None else 0
+        hitos = cursor.fetchall()
+        
+        if not hitos or len(hitos) == 0:
+            avg_avance = 0
+        else:
+            # Calculate average from latest monthly reports
+            total_avance = sum(row[1] if row[1] is not None else 0 for row in hitos)
+            avg_avance = int(total_avance / len(hitos))
         
         # Determine status
         if avg_avance == 0:
@@ -600,3 +616,322 @@ class Database:
         conn.close()
         
         return success
+    
+    # ==================== ACTIVIDADES METHODS ====================
+    
+    def create_actividad(
+        self,
+        hito_id: int,
+        descripcion_actividad: str,
+        fecha_inicio_plan: str = None,
+        fecha_fin_plan: str = None,
+        responsable: str = None,
+        fecha_real: str = None,
+        estado_actividad: str = "Por comenzar"
+    ) -> int:
+        """Create a new actividad for a hito (Admin only)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"""
+            INSERT INTO actividades 
+            (hito_id, descripcion_actividad, fecha_inicio_plan, fecha_fin_plan,
+             responsable, fecha_real, estado_actividad)
+            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder},
+                    {placeholder}, {placeholder}, {placeholder})
+        """, (hito_id, descripcion_actividad, fecha_inicio_plan, fecha_fin_plan,
+              responsable, fecha_real, estado_actividad))
+        
+        actividad_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return actividad_id
+    
+    def get_actividades_by_hito(self, hito_id: int) -> pd.DataFrame:
+        """Get all actividades for a specific hito"""
+        conn = self.get_connection()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        query = f"""
+            SELECT a.*, 
+                   COALESCE(
+                       (SELECT avance_reportado 
+                        FROM avance_mensual 
+                        WHERE entidad = 'actividad' AND id_entidad = a.id 
+                        ORDER BY mes DESC LIMIT 1), 
+                       0
+                   ) as ultimo_avance_reportado
+            FROM actividades a
+            WHERE a.hito_id = {placeholder} 
+            ORDER BY a.id
+        """
+        
+        df = pd.read_sql_query(query, conn, params=[hito_id])
+        conn.close()
+        
+        return df
+    
+    def delete_actividad(self, actividad_id: int) -> bool:
+        """Delete an actividad"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"DELETE FROM actividades WHERE id = {placeholder}", (actividad_id,))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    # ==================== AVANCE MENSUAL METHODS ====================
+    
+    def registrar_avance_mensual(
+        self,
+        entidad: str,  # 'hito' or 'actividad'
+        id_entidad: int,
+        avance_reportado: int,
+        usuario: str = None,
+        mes: str = None  # Optional, defaults to current month
+    ) -> bool:
+        """
+        Register monthly progress report (Owner only)
+        
+        Args:
+            entidad: 'hito' or 'actividad'
+            id_entidad: ID of the hito or actividad
+            avance_reportado: Progress percentage (0-100)
+            usuario: User reporting (responsable)
+            mes: Month in YYYY-MM format (defaults to current month)
+        
+        Returns:
+            True if successful, False if already reported for this month
+        """
+        from datetime import datetime
+        
+        if entidad not in ['hito', 'actividad']:
+            raise ValueError("entidad must be 'hito' or 'actividad'")
+        
+        if not (0 <= avance_reportado <= 100):
+            raise ValueError("avance_reportado must be between 0 and 100")
+        
+        # Default to current month if not specified
+        if mes is None:
+            mes = datetime.now().strftime('%Y-%m')
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            placeholder = "%s" if self.db_type == 'postgresql' else "?"
+            
+            # Try to insert (will fail if already exists for this month)
+            cursor.execute(f"""
+                INSERT INTO avance_mensual 
+                (entidad, id_entidad, mes, avance_reportado, usuario)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """, (entidad, id_entidad, mes, avance_reportado, usuario))
+            
+            conn.commit()
+            
+            # Update estado based on avance
+            if avance_reportado == 0:
+                estado = "Por comenzar"
+            elif avance_reportado < 100:
+                estado = "En progreso"
+            else:
+                estado = "Completado"
+            
+            # Update the entity's estado
+            if entidad == 'hito':
+                cursor.execute(f"""
+                    UPDATE hitos 
+                    SET estado = {placeholder}, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = {placeholder}
+                """, (estado, id_entidad))
+            else:  # actividad
+                cursor.execute(f"""
+                    UPDATE actividades 
+                    SET estado_actividad = {placeholder}, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = {placeholder}
+                """, (estado, id_entidad))
+            
+            conn.commit()
+            conn.close()
+            return True
+            
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            # Check if it's a duplicate entry error
+            if "UNIQUE constraint failed" in str(e) or "duplicate key" in str(e):
+                return False
+            raise
+    
+    def get_avance_mensual_actual(self, entidad: str, id_entidad: int) -> Optional[Dict]:
+        """Get the latest monthly progress report for an entity"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"""
+            SELECT * FROM avance_mensual
+            WHERE entidad = {placeholder} AND id_entidad = {placeholder}
+            ORDER BY mes DESC
+            LIMIT 1
+        """, (entidad, id_entidad))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            if self.db_type == 'postgresql':
+                columns = [desc[0] for desc in cursor.description]
+                return dict(zip(columns, row))
+            else:
+                return dict(row)
+        return None
+    
+    def get_historico_avance(self, entidad: str, id_entidad: int) -> pd.DataFrame:
+        """Get complete historical progress for an entity"""
+        conn = self.get_connection()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        query = f"""
+            SELECT * FROM avance_mensual
+            WHERE entidad = {placeholder} AND id_entidad = {placeholder}
+            ORDER BY mes ASC
+        """
+        
+        df = pd.read_sql_query(query, conn, params=[entidad, id_entidad])
+        conn.close()
+        
+        return df
+    
+    def get_avances_pendientes_mes(self, responsable: str, mes: str = None) -> Dict:
+        """
+        Get list of hitos and actividades that haven't been reported for the month
+        
+        Args:
+            responsable: Name of the responsible person
+            mes: Month in YYYY-MM format (defaults to current month)
+        
+        Returns:
+            Dictionary with 'hitos' and 'actividades' DataFrames
+        """
+        from datetime import datetime
+        
+        if mes is None:
+            mes = datetime.now().strftime('%Y-%m')
+        
+        conn = self.get_connection()
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        
+        # Get hitos without report for this month
+        query_hitos = f"""
+            SELECT h.*, i.indicador as nombre_indicador
+            FROM hitos h
+            JOIN indicadores i ON h.indicador_id = i.id
+            WHERE h.id NOT IN (
+                SELECT id_entidad FROM avance_mensual 
+                WHERE entidad = 'hito' AND mes = {placeholder}
+            )
+        """
+        
+        # If responsable is specified, filter by it
+        # Note: We need to check if hitos table has responsable field
+        # For now, we'll get all hitos and filter in the app layer
+        
+        df_hitos = pd.read_sql_query(query_hitos, conn, params=[mes])
+        
+        # Get actividades without report for this month
+        query_actividades = f"""
+            SELECT a.*, h.nombre as nombre_hito, i.indicador as nombre_indicador
+            FROM actividades a
+            JOIN hitos h ON a.hito_id = h.id
+            JOIN indicadores i ON h.indicador_id = i.id
+            WHERE a.responsable = {placeholder}
+            AND a.id NOT IN (
+                SELECT id_entidad FROM avance_mensual 
+                WHERE entidad = 'actividad' AND mes = {placeholder}
+            )
+        """
+        
+        df_actividades = pd.read_sql_query(query_actividades, conn, params=[responsable, mes])
+        
+        conn.close()
+        
+        return {
+            'hitos': df_hitos,
+            'actividades': df_actividades
+        }
+    
+    def get_hitos_by_responsable(self, responsable: str) -> pd.DataFrame:
+        """Get all hitos assigned to a specific responsable"""
+        conn = self.get_connection()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        
+        # First check if hitos table has responsable column
+        cursor = conn.cursor()
+        
+        if self.db_type == 'postgresql':
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'hitos' AND column_name = 'responsable'
+            """)
+        else:
+            cursor.execute("PRAGMA table_info(hitos)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_responsable = 'responsable' in columns
+        
+        # If hitos doesn't have responsable field, we'll need to add it
+        # For now, return empty DataFrame
+        query = f"""
+            SELECT h.*, i.indicador as nombre_indicador,
+                   COALESCE(
+                       (SELECT avance_reportado 
+                        FROM avance_mensual 
+                        WHERE entidad = 'hito' AND id_entidad = h.id 
+                        ORDER BY mes DESC LIMIT 1), 
+                       0
+                   ) as ultimo_avance_reportado
+            FROM hitos h
+            JOIN indicadores i ON h.indicador_id = i.id
+            ORDER BY h.id
+        """
+        
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        
+        return df
+    
+    def get_actividades_by_responsable(self, responsable: str) -> pd.DataFrame:
+        """Get all actividades assigned to a specific responsable"""
+        conn = self.get_connection()
+        
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        query = f"""
+            SELECT a.*, h.nombre as nombre_hito, i.indicador as nombre_indicador,
+                   COALESCE(
+                       (SELECT avance_reportado 
+                        FROM avance_mensual 
+                        WHERE entidad = 'actividad' AND id_entidad = a.id 
+                        ORDER BY mes DESC LIMIT 1), 
+                       0
+                   ) as ultimo_avance_reportado
+            FROM actividades a
+            JOIN hitos h ON a.hito_id = h.id
+            JOIN indicadores i ON h.indicador_id = i.id
+            WHERE a.responsable = {placeholder}
+            ORDER BY a.id
+        """
+        
+        df = pd.read_sql_query(query, conn, params=[responsable])
+        conn.close()
+        
+        return df
+
