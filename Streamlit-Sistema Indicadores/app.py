@@ -149,9 +149,8 @@ def render_crear_indicador():
     st.title("➕ Crear Indicador")
     
     # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Nuevo Indicador</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Nuevo Indicador')
         
         with st.form("crear_indicador_form", clear_on_submit=True):
             # Basic Information Section
@@ -335,7 +334,7 @@ def render_crear_indicador():
                     except Exception as e:
                         st.error(f"❌ Error al crear el indicador: {str(e)}")
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
 
 
 def render_actualizar_avance():
@@ -350,9 +349,8 @@ def render_actualizar_avance():
         return
     
     # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Seleccionar Indicador</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Seleccionar Indicador')
         
         # Create selection options
         options = []
@@ -371,7 +369,7 @@ def render_actualizar_avance():
             help="Selecciona el indicador que deseas actualizar"
         )
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
     
     if selected_id:
         # Get selected indicator details
@@ -379,9 +377,8 @@ def render_actualizar_avance():
         
         if indicador:
             # Display current status
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Estado Actual</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+            st.markdown('### Estado Actual')
                 
                 col1, col2, col3 = st.columns(3)
                 
@@ -408,12 +405,11 @@ def render_actualizar_avance():
                     st.write(f"**Fecha Inicio:** {indicador.get('fecha_inicio', 'No definida')}")
                     st.write(f"**Fecha Fin Actual:** {indicador.get('fecha_fin_actual', 'No definida')}")
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                
             
             # Update form
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Actualizar Progreso</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+            st.markdown('### Actualizar Progreso')
                 
                 with st.form("actualizar_avance_form"):
                     nuevo_avance = st.slider(
@@ -451,7 +447,7 @@ def render_actualizar_avance():
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                
 
 
 def render_gestion():
@@ -466,9 +462,8 @@ def render_gestion():
         return
     
     # Card container
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Eliminar Indicador</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Eliminar Indicador')
         
         st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
         
@@ -515,7 +510,7 @@ def render_gestion():
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
 
 
 # Sidebar navigation

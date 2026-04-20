@@ -34,12 +34,12 @@ class Database:
             if not POSTGRES_AVAILABLE:
                 raise ImportError("psycopg2 is required for PostgreSQL. Install with: pip install psycopg2-binary")
             self.db_type = 'postgresql'
-            print("🐘 Using PostgreSQL database")
+            print("   Using PostgreSQL database")
         else:
             # Development: Use SQLite
             self.db_type = 'sqlite'
             self.db_path = db_path
-            print(f"💾 Using SQLite database: {db_path}")
+            print(f"   Using SQLite database: {db_path}")
         
         print("=" * 50)
         
@@ -113,13 +113,46 @@ class Database:
                         avance_porcentaje INTEGER DEFAULT 0,
                         estado TEXT DEFAULT 'Por comenzar',
                         orden INTEGER,
+                        responsable TEXT,
                         fecha_carga DATE DEFAULT CURRENT_DATE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
                     )
                 """)
-                print("✅ PostgreSQL tables created successfully")
+                
+                # Create actividades table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS actividades (
+                        id SERIAL PRIMARY KEY,
+                        hito_id INTEGER NOT NULL,
+                        descripcion_actividad TEXT NOT NULL,
+                        fecha_inicio_plan DATE,
+                        fecha_fin_plan DATE,
+                        responsable TEXT,
+                        fecha_real DATE,
+                        estado_actividad TEXT DEFAULT 'Por comenzar',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (hito_id) REFERENCES hitos(id) ON DELETE CASCADE
+                    )
+                """)
+                
+                # Create avance_mensual table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS avance_mensual (
+                        id SERIAL PRIMARY KEY,
+                        entidad TEXT NOT NULL,
+                        id_entidad INTEGER NOT NULL,
+                        mes TEXT NOT NULL,
+                        avance_reportado INTEGER NOT NULL,
+                        fecha_reporte DATE DEFAULT CURRENT_DATE,
+                        usuario TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(entidad, id_entidad, mes)
+                    )
+                """)
+                print(" PostgreSQL tables created successfully")
             else:
                 # SQLite syntax
                 cursor.execute("""
@@ -162,18 +195,51 @@ class Database:
                         avance_porcentaje INTEGER DEFAULT 0,
                         estado TEXT DEFAULT 'Por comenzar',
                         orden INTEGER,
+                        responsable TEXT,
                         fecha_carga DATE DEFAULT (date('now')),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (indicador_id) REFERENCES indicadores(id) ON DELETE CASCADE
                     )
                 """)
-                print("✅ SQLite tables created successfully")
+
+                # Create actividades table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS actividades (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        hito_id INTEGER NOT NULL,
+                        descripcion_actividad TEXT NOT NULL,
+                        fecha_inicio_plan DATE,
+                        fecha_fin_plan DATE,
+                        responsable TEXT,
+                        fecha_real DATE,
+                        estado_actividad TEXT DEFAULT 'Por comenzar',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (hito_id) REFERENCES hitos(id) ON DELETE CASCADE
+                    )
+                """)
+                
+                # Create avance_mensual table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS avance_mensual (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        entidad TEXT NOT NULL,
+                        id_entidad INTEGER NOT NULL,
+                        mes TEXT NOT NULL,
+                        avance_reportado INTEGER NOT NULL,
+                        fecha_reporte DATE DEFAULT (date('now')),
+                        usuario TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(entidad, id_entidad, mes)
+                    )
+                """)
+                print(" SQLite tables created successfully")
             
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"❌ ERROR creating database tables: {str(e)}")
+            print(f" ERROR creating database tables: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -882,27 +948,28 @@ class Database:
             'actividades': df_actividades
         }
     
+    def get_indicador_id_by_hito(self, hito_id: int) -> Optional[int]:
+        """Get the indicator ID for a specific hito"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        placeholder = "%s" if self.db_type == 'postgresql' else "?"
+        cursor.execute(f"SELECT indicador_id FROM hitos WHERE id = {placeholder}", (hito_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            try:
+                return row['indicador_id']
+            except (TypeError, IndexError, KeyError):
+                return row[0]
+        return None
+
     def get_hitos_by_responsable(self, responsable: str) -> pd.DataFrame:
         """Get all hitos assigned to a specific responsable"""
         conn = self.get_connection(use_dict_cursor=False)
         
         placeholder = "%s" if self.db_type == 'postgresql' else "?"
         
-        # First check if hitos table has responsable column
-        cursor = conn.cursor()
-        
-        if self.db_type == 'postgresql':
-            cursor.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'hitos' AND column_name = 'responsable'
-            """)
-        else:
-            cursor.execute("PRAGMA table_info(hitos)")
-            columns = [row[1] for row in cursor.fetchall()]
-            has_responsable = 'responsable' in columns
-        
-        # If hitos doesn't have responsable field, we'll need to add it
-        # For now, return empty DataFrame
         query = f"""
             SELECT h.*, i.indicador as nombre_indicador,
                    COALESCE(
@@ -914,10 +981,11 @@ class Database:
                    ) as ultimo_avance_reportado
             FROM hitos h
             JOIN indicadores i ON h.indicador_id = i.id
+            WHERE h.responsable = {placeholder}
             ORDER BY h.id
         """
         
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn, params=[responsable])
         conn.close()
         
         return df

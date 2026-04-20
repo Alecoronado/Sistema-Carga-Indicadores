@@ -5,9 +5,13 @@ Modern web-based indicator and milestone tracking system with strict role separa
 
 import streamlit as st
 import pandas as pd
+import requests
+import os
 from datetime import datetime
-from database import Database
-from styles import get_custom_css, get_status_badge, get_progress_bar
+from src.styles import get_custom_css, get_status_badge, get_progress_bar
+
+# Configurar API_URL
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 # Page configuration
 st.set_page_config(
@@ -52,8 +56,7 @@ UNIDADES_ORGANIZACIONALES = [
 # Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
-# Initialize database
-db = Database()
+# Base de datos manejada a través de la API en Railway/Local
 
 # Initialize session state
 if 'page' not in st.session_state:
@@ -67,7 +70,11 @@ def render_dashboard():
     st.title("📊 Dashboard de Indicadores")
     
     # Get summary statistics
-    stats = db.get_summary_stats()
+    try:
+        stats = requests.get(f"{API_URL}/api/dashboard/stats").json()
+    except Exception as e:
+        st.error(f"Error conectando a la API: {str(e)}")
+        stats = {'total': 0, 'por_comenzar': 0, 'en_progreso': 0, 'completado': 0, 'avg_avance': 0}
     
     # Display metrics in columns
     col1, col2, col3, col4 = st.columns(4)
@@ -82,21 +89,21 @@ def render_dashboard():
     with col2:
         st.metric(
             label="🔵 Por Comenzar",
-            value=stats['por_comenzar'],
+            value=stats.get('por_comenzar', 0),
             delta=None
         )
     
     with col3:
         st.metric(
             label="🟡 En Progreso",
-            value=stats['en_progreso'],
+            value=stats.get('en_progreso', 0),
             delta=None
         )
     
     with col4:
         st.metric(
             label="🟢 Completados",
-            value=stats['completado'],
+            value=stats.get('completado', 0),
             delta=None
         )
     
@@ -107,44 +114,57 @@ def render_dashboard():
     
     col1, col2, col3, col4, col5 = st.columns(5)
     
+    try:
+        areas_list = requests.get(f"{API_URL}/api/areas").json()
+        años_list = requests.get(f"{API_URL}/api/años").json()
+        unidades_list = requests.get(f"{API_URL}/api/unidades-organizacionales").json()
+        tipos_list = requests.get(f"{API_URL}/api/tipos-indicador").json()
+        responsables_list = requests.get(f"{API_URL}/api/responsables").json()
+    except:
+        areas_list = []
+        años_list = []
+        unidades_list = []
+        tipos_list = []
+        responsables_list = []
+    
     with col1:
-        areas = ["Todos"] + db.get_unique_values('area')
+        areas = ["Todos"] + areas_list
         selected_area = st.selectbox("Área", areas)
     
     with col2:
-        años = ["Todos"] + [str(y) for y in db.get_unique_values('año')]
+        años = ["Todos"] + [str(y) for y in años_list]
         selected_año = st.selectbox("Año", años)
     
     with col3:
-        unidades = ["Todos"] + db.get_unique_values('unidad_organizacional')
+        unidades = ["Todos"] + unidades_list
         selected_unidad = st.selectbox("Unidad Organizacional", unidades)
     
     with col4:
-        tipos = ["Todos"] + db.get_unique_values('tipo_indicador')
+        tipos = ["Todos"] + tipos_list
         selected_tipo = st.selectbox("Tipo Indicador", tipos)
     
     with col5:
-        responsables = ["Todos"] + db.get_unique_values('responsable')
+        responsables = ["Todos"] + responsables_list
         selected_responsable = st.selectbox("Responsable", responsables)
     
-    # Apply filters
-    filter_area = None if selected_area == "Todos" else selected_area
-    filter_año = None if selected_año == "Todos" else int(selected_año)
-    filter_unidad = None if selected_unidad == "Todos" else selected_unidad
-    filter_tipo = None if selected_tipo == "Todos" else selected_tipo
-    filter_responsable = None if selected_responsable == "Todos" else selected_responsable
+    # Build query params
+    params = {}
+    if selected_area != "Todos": params["area"] = selected_area
+    if selected_año != "Todos": params["año"] = selected_año
+    if selected_unidad != "Todos": params["unidad_organizacional"] = selected_unidad
+    if selected_tipo != "Todos": params["tipo_indicador"] = selected_tipo
+    if selected_responsable != "Todos": params["responsable"] = selected_responsable
     
     # Get filtered data
-    df = db.get_all_indicadores(
-        area=filter_area,
-        año=filter_año,
-        unidad_organizacional=filter_unidad,
-        tipo_indicador=filter_tipo
-    )
+    try:
+        response = requests.get(f"{API_URL}/api/indicadores", params=params)
+        data = response.json()
+        df = pd.DataFrame(data) if data else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error obteniendo indicadores: {str(e)}")
+        df = pd.DataFrame()
     
-    # Apply responsable filter manually
-    if filter_responsable:
-        df = df[df['responsable'] == filter_responsable]
+
     
     st.markdown("---")
     
@@ -206,9 +226,8 @@ def render_gestion_indicadores_admin():
     tab1, tab2 = st.tabs(["➕ Crear Indicador", "📝 Editar/Eliminar"])
     
     with tab1:
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Nuevo Indicador</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('### Nuevo Indicador')
             
             with st.form("crear_indicador_form", clear_on_submit=True):
                 # Basic Information
@@ -345,45 +364,56 @@ def render_gestion_indicadores_admin():
                         st.error("❌ Por favor completa los campos obligatorios")
                     else:
                         try:
-                            record_id = db.create_indicador(
-                                id_estrategico=id_estrategico if id_estrategico else None,
-                                año=año,
-                                indicador=indicador,
-                                unidad_organizacional=unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
-                                unidad_organizacional_colaboradora=unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
-                                area=area if area else None,
-                                lineamientos_estrategicos=lineamientos_estrategicos,
-                                meta=meta if meta else None,
-                                medida=medida if medida else None,
-                                estado=estado,
-                                fecha_inicio=str(fecha_inicio) if fecha_inicio else None,
-                                fecha_fin_original=str(fecha_fin_original) if fecha_fin_original else None,
-                                tipo_indicador=tipo_indicador,
-                                tiene_hitos=tiene_hitos,
-                                tiene_actividades=tiene_actividades,
-                                responsable=responsable
-                            )
-                            st.success(f"✅ Indicador creado exitosamente (ID: {record_id})")
-                            if tiene_hitos:
-                                st.info("💡 Ahora puedes agregar hitos en '🎯 Gestión de Hitos'")
-                            if tiene_actividades:
-                                st.info("💡 Podrás agregar actividades en '📋 Gestión de Actividades'")
-                            st.balloons()
+                            payload = {
+                                "id_estrategico": id_estrategico if id_estrategico else None,
+                                "año": año,
+                                "indicador": indicador,
+                                "unidad_organizacional": unidad_organizacional if unidad_organizacional != "Seleccionar..." else None,
+                                "unidad_organizacional_colaboradora": unidad_organizacional_colaboradora if unidad_organizacional_colaboradora != "Seleccionar..." else None,
+                                "area": area if area else None,
+                                "lineamientos_estrategicos": lineamientos_estrategicos,
+                                "meta": meta if meta else None,
+                                "medida": medida if medida else None,
+                                "estado": estado,
+                                "fecha_inicio": str(fecha_inicio) if fecha_inicio else None,
+                                "fecha_fin_original": str(fecha_fin_original) if fecha_fin_original else None,
+                                "fecha_fin_actual": None,
+                                "tipo_indicador": tipo_indicador,
+                                "tiene_hitos": tiene_hitos,
+                                "tiene_actividades": tiene_actividades,
+                                "responsable": responsable
+                            }
+                            response = requests.post(f"{API_URL}/api/indicadores", json=payload)
+                            
+                            if response.status_code == 201:
+                                msg = response.json().get("message", "Indicador creado")
+                                st.success(f"✅ {msg}")
+                                if tiene_hitos:
+                                    st.info("💡 Ahora puedes agregar hitos en '🎯 Gestión de Hitos'")
+                                if tiene_actividades:
+                                    st.info("💡 Podrás agregar actividades en '📋 Gestión de Actividades'")
+                                st.balloons()
+                            else:
+                                st.error(f"❌ Error API: {response.text}")
                         except Exception as e:
                             st.error(f"❌ Error al crear el indicador: {str(e)}")
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            
     
     with tab2:
         # Delete indicator section
-        df = db.get_all_indicadores()
+        try:
+            res_ind = requests.get(f"{API_URL}/api/indicadores")
+            data_ind = res_ind.json()
+            df = pd.DataFrame(data_ind) if data_ind else pd.DataFrame()
+        except:
+            df = pd.DataFrame()
         
         if len(df) == 0:
             st.info("No hay indicadores registrados.")
         else:
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Eliminar Indicador</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+            st.markdown('### Eliminar Indicador')
                 
                 st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
                 
@@ -399,7 +429,10 @@ def render_gestion_indicadores_admin():
                 )
                 
                 if selected_id:
-                    indicador = db.get_indicador_by_id(selected_id)
+                    try:
+                        indicador = requests.get(f"{API_URL}/api/indicadores/{selected_id}").json()
+                    except:
+                        indicador = None
                     
                     if indicador:
                         st.markdown("---")
@@ -412,15 +445,16 @@ def render_gestion_indicadores_admin():
                         
                         if st.button("🗑️ Eliminar", type="primary", use_container_width=True):
                             try:
-                                if db.delete_indicador(selected_id):
+                                del_res = requests.delete(f"{API_URL}/api/indicadores/{selected_id}")
+                                if del_res.status_code == 200:
                                     st.success("✅ Indicador eliminado exitosamente")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Error al eliminar el indicador")
+                                    st.error(f"❌ Error al eliminar el indicador: {del_res.text}")
                             except Exception as e:
                                 st.error(f"❌ Error: {str(e)}")
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                
 
 
 def render_gestion_hitos_admin():
@@ -430,17 +464,21 @@ def render_gestion_hitos_admin():
     st.info("ℹ️ **Rol Admin**: Aquí defines la estructura de los hitos. Los avances se reportan en la página 'Actualización Mensual'.")
     
     # Get indicators with hitos
-    df = db.get_all_indicadores()
-    df_con_hitos = df[df['tiene_hitos'] == 1] if 'tiene_hitos' in df.columns else df
+    try:
+        res = requests.get(f"{API_URL}/api/indicadores")
+        data = res.json()
+        df = pd.DataFrame(data) if data else pd.DataFrame()
+        df_con_hitos = df[df['tiene_hitos'] == True] if 'tiene_hitos' in df.columns else df
+    except:
+        df_con_hitos = pd.DataFrame()
     
     if len(df_con_hitos) == 0:
         st.warning("⚠️ No hay indicadores con hitos habilitados.")
         return
     
     # Select indicator
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Seleccionar Indicador</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Seleccionar Indicador')
         
         options = []
         for _, row in df_con_hitos.iterrows():
@@ -453,16 +491,20 @@ def render_gestion_hitos_admin():
             format_func=lambda x: next(opt[1] for opt in options if opt[0] == x)
         )
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
     
     if selected_id:
         # Get hitos for this indicator
-        hitos_df = db.get_hitos_by_indicador(selected_id)
+        try:
+            hitos_res = requests.get(f"{API_URL}/api/indicadores/{selected_id}/hitos")
+            hitos_data = hitos_res.json()
+            hitos_df = pd.DataFrame(hitos_data) if hitos_data else pd.DataFrame()
+        except:
+            hitos_df = pd.DataFrame()
         
         # Show existing hitos
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Hitos Existentes</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('### Hitos Existentes')
             
             if len(hitos_df) > 0:
                 for _, hito in hitos_df.iterrows():
@@ -485,21 +527,25 @@ def render_gestion_hitos_admin():
                     
                     with col4:
                         if st.button("🗑️", key=f"del_hito_{hito['id']}", help="Eliminar hito"):
-                            if db.delete_hito(hito['id']):
-                                db.update_indicador_from_hitos(selected_id)
-                                st.success("Hito eliminado")
-                                st.rerun()
+                            try:
+                                del_res = requests.delete(f"{API_URL}/api/hitos/{hito['id']}")
+                                if del_res.status_code == 200:
+                                    st.success("Hito eliminado")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error al eliminar hito: {del_res.text}")
+                            except Exception as e:
+                                st.error(f"Error: {str(e)}")
                     
                     st.markdown("---")
             else:
                 st.info("No hay hitos creados para este indicador.")
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            
         
         # Create new hito
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">➕ Agregar Nuevo Hito</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('### ➕ Agregar Nuevo Hito')
             
             with st.form("crear_hito_form"):
                 nombre_hito = st.text_input(
@@ -539,25 +585,30 @@ def render_gestion_hitos_admin():
                         st.error("❌ El nombre y responsable del hito son obligatorios")
                     else:
                         try:
-                            hito_id = db.create_hito(
-                                indicador_id=selected_id,
-                                nombre=nombre_hito,
-                                descripcion=descripcion_hito if descripcion_hito else None,
-                                fecha_inicio=str(fecha_inicio_hito) if fecha_inicio_hito else None,
-                                fecha_fin_planificada=str(fecha_fin_planificada_hito) if fecha_fin_planificada_hito else None,
-                                avance_porcentaje=0,
-                                estado="Por comenzar",
-                                orden=len(hitos_df) + 1,
-                                responsable=responsable_hito
-                            )
+                            payload = {
+                                "indicador_id": selected_id,
+                                "nombre": nombre_hito,
+                                "descripcion": descripcion_hito if descripcion_hito else None,
+                                "fecha_inicio": str(fecha_inicio_hito) if fecha_inicio_hito else None,
+                                "fecha_fin_planificada": str(fecha_fin_planificada_hito) if fecha_fin_planificada_hito else None,
+                                "avance_porcentaje": 0,
+                                "estado": "Por comenzar",
+                                "orden": len(hitos_df) + 1,
+                                "responsable": responsable_hito
+                            }
+                            response = requests.post(f"{API_URL}/api/hitos", json=payload)
                             
-                            st.success(f"✅ Hito creado exitosamente (ID: {hito_id})")
-                            st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
-                            st.rerun()
+                            if response.status_code == 201:
+                                msg = response.json().get("message", "Hito creado")
+                                st.success(f"✅ {msg}")
+                                st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Error API: {response.text}")
                         except Exception as e:
                             st.error(f"❌ Error al crear el hito: {str(e)}")
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            
 
 
 def render_gestion_actividades_admin():
@@ -567,17 +618,21 @@ def render_gestion_actividades_admin():
     st.info("ℹ️ **Rol Admin**: Aquí defines las actividades bajo cada hito. Los avances se reportan en la página 'Actualización Mensual'.")
     
     # Get all hitos
-    df_indicadores = db.get_all_indicadores()
-    df_con_hitos = df_indicadores[df_indicadores['tiene_hitos'] == 1] if 'tiene_hitos' in df_indicadores.columns else df_indicadores
+    try:
+        res_ind = requests.get(f"{API_URL}/api/indicadores")
+        data_ind = res_ind.json()
+        df_indicadores = pd.DataFrame(data_ind) if data_ind else pd.DataFrame()
+        df_con_hitos = df_indicadores[df_indicadores['tiene_hitos'] == True] if 'tiene_hitos' in df_indicadores.columns else df_indicadores
+    except:
+        df_con_hitos = pd.DataFrame()
     
     if len(df_con_hitos) == 0:
         st.warning("⚠️ No hay indicadores con hitos.")
         return
     
     # Select indicator first
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Seleccionar Indicador</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Seleccionar Indicador')
         
         options_ind = []
         for _, row in df_con_hitos.iterrows():
@@ -590,19 +645,23 @@ def render_gestion_actividades_admin():
             format_func=lambda x: next(opt[1] for opt in options_ind if opt[0] == x)
         )
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
     
     if selected_ind_id:
-        hitos_df = db.get_hitos_by_indicador(selected_ind_id)
+        try:
+            res_hitos = requests.get(f"{API_URL}/api/indicadores/{selected_ind_id}/hitos")
+            data_hitos = res_hitos.json()
+            hitos_df = pd.DataFrame(data_hitos) if data_hitos else pd.DataFrame()
+        except:
+            hitos_df = pd.DataFrame()
         
         if len(hitos_df) == 0:
             st.warning("⚠️ Este indicador no tiene hitos. Crea hitos primero en 'Gestión de Hitos'.")
             return
         
         # Select hito
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Seleccionar Hito</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('### Seleccionar Hito')
             
             options_hito = []
             for _, row in hitos_df.iterrows():
@@ -615,16 +674,20 @@ def render_gestion_actividades_admin():
                 format_func=lambda x: next(opt[1] for opt in options_hito if opt[0] == x)
             )
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            
         
         if selected_hito_id:
             # Get actividades for this hito
-            actividades_df = db.get_actividades_by_hito(selected_hito_id)
+            try:
+                res_act = requests.get(f"{API_URL}/api/hitos/{selected_hito_id}/actividades")
+                data_act = res_act.json()
+                actividades_df = pd.DataFrame(data_act) if data_act else pd.DataFrame()
+            except:
+                actividades_df = pd.DataFrame()
             
             # Show existing actividades
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">Actividades Existentes</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+            st.markdown('### Actividades Existentes')
                 
                 if len(actividades_df) > 0:
                     for _, actividad in actividades_df.iterrows():
@@ -644,20 +707,25 @@ def render_gestion_actividades_admin():
                         
                         with col4:
                             if st.button("🗑️", key=f"del_act_{actividad['id']}", help="Eliminar actividad"):
-                                if db.delete_actividad(actividad['id']):
-                                    st.success("Actividad eliminada")
-                                    st.rerun()
+                                try:
+                                    del_res = requests.delete(f"{API_URL}/api/actividades/{actividad['id']}")
+                                    if del_res.status_code == 200:
+                                        st.success("Actividad eliminada")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Error al eliminar: {del_res.text}")
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
                         
                         st.markdown("---")
                 else:
                     st.info("No hay actividades creadas para este hito.")
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                
             
             # Create new actividad
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown('<div class="card-header">➕ Agregar Nueva Actividad</div>', unsafe_allow_html=True)
+            with st.container(border=True):
+            st.markdown('### ➕ Agregar Nueva Actividad')
                 
                 with st.form("crear_actividad_form"):
                     descripcion_actividad = st.text_input(
@@ -691,22 +759,27 @@ def render_gestion_actividades_admin():
                             st.error("❌ La descripción y responsable son obligatorios")
                         else:
                             try:
-                                actividad_id = db.create_actividad(
-                                    hito_id=selected_hito_id,
-                                    descripcion_actividad=descripcion_actividad,
-                                    fecha_inicio_plan=str(fecha_inicio_plan) if fecha_inicio_plan else None,
-                                    fecha_fin_plan=str(fecha_fin_plan) if fecha_fin_plan else None,
-                                    responsable=responsable_actividad,
-                                    estado_actividad="Por comenzar"
-                                )
+                                payload = {
+                                    "hito_id": selected_hito_id,
+                                    "descripcion_actividad": descripcion_actividad,
+                                    "fecha_inicio_plan": str(fecha_inicio_plan) if fecha_inicio_plan else None,
+                                    "fecha_fin_plan": str(fecha_fin_plan) if fecha_fin_plan else None,
+                                    "responsable": responsable_actividad,
+                                    "estado_actividad": "Por comenzar"
+                                }
+                                response = requests.post(f"{API_URL}/api/actividades", json=payload)
                                 
-                                st.success(f"✅ Actividad creada exitosamente (ID: {actividad_id})")
-                                st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
-                                st.rerun()
+                                if response.status_code == 201:
+                                    msg = response.json().get("message", "Actividad creada")
+                                    st.success(f"✅ {msg}")
+                                    st.info("📊 El responsable podrá reportar avances en 'Actualización Mensual'")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Error API: {response.text}")
                             except Exception as e:
                                 st.error(f"❌ Error al crear la actividad: {str(e)}")
                 
-                st.markdown('</div>', unsafe_allow_html=True)
+                
 
 
 # ==================== OWNER PAGE ====================
@@ -719,16 +792,18 @@ def render_actualizacion_mensual_owner():
     st.info(f"ℹ️ **Rol Owner**: Reporta el avance del mes actual ({current_month}). Solo puedes reportar una vez por mes.")
     
     # Get list of all responsables
-    responsables = db.get_unique_values('responsable')
+    try:
+        responsables = requests.get(f"{API_URL}/api/responsables").json()
+    except:
+        responsables = []
     
     if not responsables:
         st.warning("⚠️ No hay responsables asignados en el sistema.")
         return
     
     # Select responsable
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Seleccionar Responsable</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+            st.markdown('### Seleccionar Responsable')
         
         selected_responsable = st.selectbox(
             "Responsable",
@@ -736,16 +811,18 @@ def render_actualizacion_mensual_owner():
             help="Selecciona el responsable para ver sus hitos y actividades"
         )
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        
     
     if selected_responsable:
         # Get hitos and actividades for this responsable
-        hitos_df = db.get_hitos_by_responsable(selected_responsable)
-        actividades_df = db.get_actividades_by_responsable(selected_responsable)
-        
-        # Filter by responsable (since get_hitos_by_responsable returns all hitos)
-        if 'responsable' in hitos_df.columns:
-            hitos_df = hitos_df[hitos_df['responsable'] == selected_responsable]
+        try:
+            res_items = requests.get(f"{API_URL}/api/seguimiento/responsable/{selected_responsable}")
+            data_items = res_items.json()
+            hitos_df = pd.DataFrame(data_items.get('hitos', []))
+            actividades_df = pd.DataFrame(data_items.get('actividades', []))
+        except:
+            hitos_df = pd.DataFrame()
+            actividades_df = pd.DataFrame()
         
         total_items = len(hitos_df) + len(actividades_df)
         
@@ -833,46 +910,49 @@ def render_actualizacion_mensual_owner():
                 submitted = st.form_submit_button("💾 Guardar Reporte Mensual", use_container_width=True)
                 
                 if submitted:
-                    try:
-                        success_count = 0
-                        already_reported = []
-                        errors = []
+                    success_count = 0
+                    already_reported = []
+                    errors = []
+                    
+                    for reporte in reportes:
+                        payload = {
+                            "entidad": reporte['entidad'],
+                            "id_entidad": reporte['id_entidad'],
+                            "avance_reportado": reporte['avance'],
+                            "usuario": selected_responsable,
+                            "mes": current_month
+                        }
                         
-                        for reporte in reportes:
-                            result = db.registrar_avance_mensual(
-                                entidad=reporte['entidad'],
-                                id_entidad=reporte['id_entidad'],
-                                avance_reportado=reporte['avance'],
-                                usuario=selected_responsable,
-                                mes=current_month
-                            )
+                        try:
+                            result = requests.post(f"{API_URL}/api/avance-mensual", json=payload)
                             
-                            if result:
+                            if result.status_code == 201:
                                 success_count += 1
-                            else:
+                            elif result.status_code == 400:
                                 already_reported.append(reporte['nombre'])
-                        
-                        # Update indicator progress for all affected indicators
-                        # Get unique indicator IDs from hitos
-                        if len(hitos_df) > 0:
-                            for indicador_id in hitos_df['indicador_id'].unique():
-                                db.update_indicador_from_hitos(indicador_id)
-                        
-                        if success_count > 0:
-                            st.success(f"✅ {success_count} reportes guardados exitosamente")
-                            st.info("📊 Los avances de los indicadores se actualizaron automáticamente")
-                        
-                        if already_reported:
-                            st.warning(f"⚠️ Los siguientes items ya fueron reportados este mes: {', '.join(already_reported)}")
-                        
-                        if success_count > 0:
-                            st.balloons()
-                            st.rerun()
+                            else:
+                                errors.append(f"{reporte['nombre']}: {result.text}")
+                        except Exception as e:
+                            errors.append(f"{reporte['nombre']}: {str(e)}")
+                    
+                    # Note: API already handles update_indicador_from_hitos when a hito is reported
+                    
+                    if success_count > 0:
+                        st.success(f"✅ {success_count} reportes guardados exitosamente")
+                        st.info("📊 Los avances de los indicadores se actualizaron automáticamente")
+                    
+                    if already_reported:
+                        st.warning(f"⚠️ Los siguientes items ya fueron reportados este mes: {', '.join(already_reported)}")
+                    
+                    if errors:
+                        for err in errors:
+                            st.error(err)
                             
-                    except Exception as e:
-                        st.error(f"❌ Error al guardar reportes: {str(e)}")
+                    if success_count > 0:
+                        st.balloons()
+                        st.rerun()
             
-            st.markdown('</div>', unsafe_allow_html=True)
+            
 
 
 # ==================== SEGUIMIENTO PAGE ====================
@@ -884,7 +964,12 @@ def render_vista_seguimiento():
     st.info("ℹ️ Vista de solo lectura con jerarquía completa y avances calculados automáticamente")
     
     # Get all indicators
-    df = db.get_all_indicadores()
+    try:
+        res = requests.get(f"{API_URL}/api/indicadores")
+        data = res.json()
+        df = pd.DataFrame(data) if data else pd.DataFrame()
+    except:
+        df = pd.DataFrame()
     
     if len(df) == 0:
         st.info("No hay indicadores registrados.")
@@ -893,12 +978,19 @@ def render_vista_seguimiento():
     # Filters
     col1, col2 = st.columns(2)
     
+    try:
+        responsables_list = requests.get(f"{API_URL}/api/responsables").json()
+        años_list = requests.get(f"{API_URL}/api/años").json()
+    except:
+        responsables_list = []
+        años_list = []
+    
     with col1:
-        responsables = ["Todos"] + db.get_unique_values('responsable')
+        responsables = ["Todos"] + responsables_list
         selected_responsable = st.selectbox("Filtrar por Responsable", responsables)
     
     with col2:
-        años = ["Todos"] + [str(y) for y in db.get_unique_values('año')]
+        años = ["Todos"] + [str(y) for y in años_list]
         selected_año = st.selectbox("Filtrar por Año", años)
     
     # Apply filters
@@ -925,50 +1017,54 @@ def render_vista_seguimiento():
             with col3:
                 st.write(f"**Responsable:** {indicador.get('responsable', 'N/A')}")
             
+            # Use jerarquia endpoint to get hitos and actividades
+            try:
+                jerarquia_data = requests.get(f"{API_URL}/api/indicadores/{indicador['id']}/jerarquia").json()
+                hitos = jerarquia_data.get('hitos', [])
+            except:
+                hitos = []
+            
             # Show hitos if exists
-            if indicador.get('tiene_hitos'):
-                hitos_df = db.get_hitos_by_indicador(indicador['id'])
+            if hitos:
+                st.markdown("### 🎯 Hitos")
                 
-                if len(hitos_df) > 0:
-                    st.markdown("### 🎯 Hitos")
+                for hito in hitos:
+                    col1, col2, col3 = st.columns([3, 1, 1])
                     
-                    for _, hito in hitos_df.iterrows():
-                        col1, col2, col3 = st.columns([3, 1, 1])
+                    with col1:
+                        st.write(f"**{hito['nombre']}**")
+                        if hito.get('responsable'):
+                            st.caption(f"👤 {hito['responsable']}")
+                    
+                    with col2:
+                        ultimo_avance = hito.get('ultimo_avance_reportado', hito.get('avance_porcentaje', 0))
+                        st.write(f"{ultimo_avance}%")
+                    
+                    with col3:
+                        st.markdown(get_status_badge(hito['estado']), unsafe_allow_html=True)
+                    
+                    # Show actividades for this hito
+                    actividades = hito.get('actividades', [])
+                    
+                    if actividades:
+                        st.markdown("**📋 Actividades:**")
                         
-                        with col1:
-                            st.write(f"**{hito['nombre']}**")
-                            if hito.get('responsable'):
-                                st.caption(f"👤 {hito['responsable']}")
-                        
-                        with col2:
-                            ultimo_avance = hito.get('ultimo_avance_reportado', hito.get('avance_porcentaje', 0))
-                            st.write(f"{ultimo_avance}%")
-                        
-                        with col3:
-                            st.markdown(get_status_badge(hito['estado']), unsafe_allow_html=True)
-                        
-                        # Show actividades for this hito
-                        actividades_df = db.get_actividades_by_hito(hito['id'])
-                        
-                        if len(actividades_df) > 0:
-                            st.markdown("**📋 Actividades:**")
+                        for actividad in actividades:
+                            col1, col2, col3 = st.columns([3, 1, 1])
                             
-                            for _, actividad in actividades_df.iterrows():
-                                col1, col2, col3 = st.columns([3, 1, 1])
-                                
-                                with col1:
-                                    st.caption(f"  • {actividad['descripcion_actividad']}")
-                                    if actividad.get('responsable'):
-                                        st.caption(f"    👤 {actividad['responsable']}")
-                                
-                                with col2:
-                                    ultimo_avance_act = actividad.get('ultimo_avance_reportado', 0)
-                                    st.caption(f"{ultimo_avance_act}%")
-                                
-                                with col3:
-                                    st.markdown(get_status_badge(actividad['estado_actividad']), unsafe_allow_html=True)
-                        
-                        st.markdown("---")
+                            with col1:
+                                st.caption(f"  • {actividad['descripcion_actividad']}")
+                                if actividad.get('responsable'):
+                                    st.caption(f"    👤 {actividad['responsable']}")
+                            
+                            with col2:
+                                ultimo_avance_act = actividad.get('ultimo_avance_reportado', 0)
+                                st.caption(f"{ultimo_avance_act}%")
+                            
+                            with col3:
+                                st.markdown(get_status_badge(actividad['estado_actividad']), unsafe_allow_html=True)
+                    
+                    st.markdown("---")
 
 
 # ==================== SIDEBAR NAVIGATION ====================

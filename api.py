@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from datetime import datetime
 
-from database import Database
-from schemas import (
+from src.database import Database
+from src.schemas import (
     IndicadorCreate, IndicadorUpdate, IndicadorResponse,
     HitoCreate, HitoUpdate, HitoResponse,
     ActividadCreate, ActividadUpdate, ActividadResponse,
@@ -43,7 +43,7 @@ db = Database()
 # ==================== ROOT ====================
 
 @app.get("/", tags=["Root"])
-async def root():
+def root():
     """API root endpoint"""
     return {
         "message": "Sistema de Indicadores API",
@@ -56,7 +56,7 @@ async def root():
 # ==================== INDICADORES ====================
 
 @app.get("/api/indicadores", response_model=List[IndicadorResponse], tags=["Indicadores"])
-async def get_indicadores(
+def get_indicadores(
     area: Optional[str] = Query(None, description="Filtrar por área"),
     año: Optional[int] = Query(None, description="Filtrar por año"),
     unidad_organizacional: Optional[str] = Query(None, description="Filtrar por unidad organizacional"),
@@ -86,7 +86,7 @@ async def get_indicadores(
 
 
 @app.get("/api/indicadores/{indicador_id}", response_model=IndicadorResponse, tags=["Indicadores"])
-async def get_indicador(indicador_id: int):
+def get_indicador(indicador_id: int):
     """Get a specific indicator by ID"""
     try:
         indicador = db.get_indicador_by_id(indicador_id)
@@ -100,7 +100,7 @@ async def get_indicador(indicador_id: int):
 
 
 @app.post("/api/indicadores", response_model=MessageResponse, status_code=201, tags=["Indicadores"])
-async def create_indicador(indicador: IndicadorCreate):
+def create_indicador(indicador: IndicadorCreate):
     """Create a new indicator (Admin only)"""
     try:
         record_id = db.create_indicador(
@@ -127,7 +127,7 @@ async def create_indicador(indicador: IndicadorCreate):
 
 
 @app.delete("/api/indicadores/{indicador_id}", response_model=MessageResponse, tags=["Indicadores"])
-async def delete_indicador(indicador_id: int):
+def delete_indicador(indicador_id: int):
     """Delete an indicator (Admin only)"""
     try:
         success = db.delete_indicador(indicador_id)
@@ -141,7 +141,7 @@ async def delete_indicador(indicador_id: int):
 
 
 @app.get("/api/indicadores/{indicador_id}/jerarquia", response_model=IndicadorJerarquia, tags=["Indicadores"])
-async def get_indicador_jerarquia(indicador_id: int):
+def get_indicador_jerarquia(indicador_id: int):
     """Get indicator with full hierarchy (hitos and actividades)"""
     try:
         # Get indicator
@@ -193,7 +193,7 @@ async def get_indicador_jerarquia(indicador_id: int):
 # ==================== HITOS ====================
 
 @app.get("/api/hitos", response_model=List[HitoResponse], tags=["Hitos"])
-async def get_hitos(
+def get_hitos(
     responsable: Optional[str] = Query(None, description="Filtrar por responsable")
 ):
     """Get all hitos with optional filters"""
@@ -211,7 +211,7 @@ async def get_hitos(
 
 
 @app.get("/api/indicadores/{indicador_id}/hitos", response_model=List[HitoResponse], tags=["Hitos"])
-async def get_hitos_by_indicador(indicador_id: int):
+def get_hitos_by_indicador(indicador_id: int):
     """Get all hitos for a specific indicator"""
     try:
         df = db.get_hitos_by_indicador(indicador_id)
@@ -222,7 +222,7 @@ async def get_hitos_by_indicador(indicador_id: int):
 
 
 @app.post("/api/hitos", response_model=MessageResponse, status_code=201, tags=["Hitos"])
-async def create_hito(hito: HitoCreate):
+def create_hito(hito: HitoCreate):
     """Create a new hito (Admin only)"""
     try:
         hito_id = db.create_hito(
@@ -243,12 +243,25 @@ async def create_hito(hito: HitoCreate):
 
 
 @app.delete("/api/hitos/{hito_id}", response_model=MessageResponse, tags=["Hitos"])
-async def delete_hito(hito_id: int):
+def delete_hito(hito_id: int):
     """Delete a hito (Admin only)"""
     try:
+        # Get indicator_id before deleting
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        placeholder = "%s" if db.db_type == 'postgresql' else "?"
+        cursor.execute(f"SELECT indicador_id FROM hitos WHERE id = {placeholder}", (hito_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
         success = db.delete_hito(hito_id)
         if not success:
             raise HTTPException(status_code=404, detail="Hito no encontrado")
+            
+        if row:
+            indicador_id = row['indicador_id'] if isinstance(row, dict) else row[0]
+            db.update_indicador_from_hitos(indicador_id)
+            
         return MessageResponse(message="Hito eliminado exitosamente", success=True)
     except HTTPException:
         raise
@@ -259,7 +272,7 @@ async def delete_hito(hito_id: int):
 # ==================== ACTIVIDADES ====================
 
 @app.get("/api/actividades", response_model=List[ActividadResponse], tags=["Actividades"])
-async def get_actividades(
+def get_actividades(
     responsable: Optional[str] = Query(None, description="Filtrar por responsable")
 ):
     """Get all actividades with optional filters"""
@@ -278,7 +291,7 @@ async def get_actividades(
 
 
 @app.get("/api/hitos/{hito_id}/actividades", response_model=List[ActividadResponse], tags=["Actividades"])
-async def get_actividades_by_hito(hito_id: int):
+def get_actividades_by_hito(hito_id: int):
     """Get all actividades for a specific hito"""
     try:
         df = db.get_actividades_by_hito(hito_id)
@@ -289,7 +302,7 @@ async def get_actividades_by_hito(hito_id: int):
 
 
 @app.post("/api/actividades", response_model=MessageResponse, status_code=201, tags=["Actividades"])
-async def create_actividad(actividad: ActividadCreate):
+def create_actividad(actividad: ActividadCreate):
     """Create a new actividad (Admin only)"""
     try:
         actividad_id = db.create_actividad(
@@ -307,7 +320,7 @@ async def create_actividad(actividad: ActividadCreate):
 
 
 @app.delete("/api/actividades/{actividad_id}", response_model=MessageResponse, tags=["Actividades"])
-async def delete_actividad(actividad_id: int):
+def delete_actividad(actividad_id: int):
     """Delete an actividad (Admin only)"""
     try:
         success = db.delete_actividad(actividad_id)
@@ -323,7 +336,7 @@ async def delete_actividad(actividad_id: int):
 # ==================== AVANCE MENSUAL ====================
 
 @app.post("/api/avance-mensual", response_model=MessageResponse, status_code=201, tags=["Avance Mensual"])
-async def registrar_avance_mensual(avance: AvanceMensualCreate):
+def registrar_avance_mensual(avance: AvanceMensualCreate):
     """Register monthly progress report (Owner only)"""
     try:
         success = db.registrar_avance_mensual(
@@ -343,9 +356,9 @@ async def registrar_avance_mensual(avance: AvanceMensualCreate):
         # Update indicator progress if it's a hito
         if avance.entidad == 'hito':
             # Get the indicador_id from the hito
-            hito = db.get_hitos_by_indicador(0)  # Need to get hito details
-            # For now, we'll update all indicators (could be optimized)
-            pass
+            indicador_id = db.get_indicador_id_by_hito(avance.id_entidad)
+            if indicador_id:
+                db.update_indicador_from_hitos(indicador_id)
         
         return MessageResponse(
             message=f"Avance mensual registrado exitosamente para {avance.entidad} ID {avance.id_entidad}",
@@ -358,7 +371,7 @@ async def registrar_avance_mensual(avance: AvanceMensualCreate):
 
 
 @app.get("/api/avance-mensual/{entidad}/{id_entidad}", response_model=AvanceMensualResponse, tags=["Avance Mensual"])
-async def get_avance_mensual_actual(entidad: str, id_entidad: int):
+def get_avance_mensual_actual(entidad: str, id_entidad: int):
     """Get the latest monthly progress report for an entity"""
     try:
         if entidad not in ['hito', 'actividad']:
@@ -376,7 +389,7 @@ async def get_avance_mensual_actual(entidad: str, id_entidad: int):
 
 
 @app.get("/api/avance-mensual/{entidad}/{id_entidad}/historico", response_model=List[AvanceMensualResponse], tags=["Avance Mensual"])
-async def get_historico_avance(entidad: str, id_entidad: int):
+def get_historico_avance(entidad: str, id_entidad: int):
     """Get complete historical progress for an entity"""
     try:
         if entidad not in ['hito', 'actividad']:
@@ -392,7 +405,7 @@ async def get_historico_avance(entidad: str, id_entidad: int):
 # ==================== DASHBOARD & SEGUIMIENTO ====================
 
 @app.get("/api/dashboard/stats", response_model=DashboardStats, tags=["Dashboard"])
-async def get_dashboard_stats():
+def get_dashboard_stats():
     """Get dashboard statistics"""
     try:
         stats = db.get_summary_stats()
@@ -402,7 +415,7 @@ async def get_dashboard_stats():
 
 
 @app.get("/api/seguimiento/responsable/{responsable}", tags=["Seguimiento"])
-async def get_items_by_responsable(responsable: str):
+def get_items_by_responsable(responsable: str):
     """Get all hitos and actividades for a specific responsable"""
     try:
         hitos_df = db.get_hitos_by_responsable(responsable)
@@ -425,7 +438,7 @@ async def get_items_by_responsable(responsable: str):
 # ==================== UTILIDADES ====================
 
 @app.get("/api/responsables", response_model=List[str], tags=["Utilidades"])
-async def get_responsables():
+def get_responsables():
     """Get list of all responsables"""
     try:
         responsables = db.get_unique_values('responsable')
@@ -435,7 +448,7 @@ async def get_responsables():
 
 
 @app.get("/api/areas", response_model=List[str], tags=["Utilidades"])
-async def get_areas():
+def get_areas():
     """Get list of all areas"""
     try:
         areas = db.get_unique_values('area')
@@ -445,7 +458,7 @@ async def get_areas():
 
 
 @app.get("/api/unidades-organizacionales", response_model=List[str], tags=["Utilidades"])
-async def get_unidades_organizacionales():
+def get_unidades_organizacionales():
     """Get list of all organizational units"""
     try:
         unidades = db.get_unique_values('unidad_organizacional')
@@ -453,11 +466,29 @@ async def get_unidades_organizacionales():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/años", response_model=List[int], tags=["Utilidades"])
+def get_años():
+    """Get list of all years"""
+    try:
+        años = db.get_unique_values('año')
+        return [int(a) for a in años if a is not None]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tipos-indicador", response_model=List[str], tags=["Utilidades"])
+def get_tipos_indicador():
+    """Get list of all indicator types"""
+    try:
+        tipos = db.get_unique_values('tipo_indicador')
+        return tipos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==================== HEALTH CHECK ====================
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
