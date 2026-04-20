@@ -150,7 +150,7 @@ def render_crear_indicador():
     
     # Card container
     with st.container(border=True):
-            st.markdown('### Nuevo Indicador')
+        st.markdown('### Nuevo Indicador')
         
         with st.form("crear_indicador_form", clear_on_submit=True):
             # Basic Information Section
@@ -350,7 +350,7 @@ def render_actualizar_avance():
     
     # Card container
     with st.container(border=True):
-            st.markdown('### Seleccionar Indicador')
+        st.markdown('### Seleccionar Indicador')
         
         # Create selection options
         options = []
@@ -378,7 +378,7 @@ def render_actualizar_avance():
         if indicador:
             # Display current status
             with st.container(border=True):
-            st.markdown('### Estado Actual')
+                st.markdown('### Estado Actual')
                 
                 col1, col2, col3 = st.columns(3)
                 
@@ -409,7 +409,7 @@ def render_actualizar_avance():
             
             # Update form
             with st.container(border=True):
-            st.markdown('### Actualizar Progreso')
+                st.markdown('### Actualizar Progreso')
                 
                 with st.form("actualizar_avance_form"):
                     nuevo_avance = st.slider(
@@ -463,7 +463,7 @@ def render_gestion():
     
     # Card container
     with st.container(border=True):
-            st.markdown('### Eliminar Indicador')
+        st.markdown('### Eliminar Indicador')
         
         st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
         

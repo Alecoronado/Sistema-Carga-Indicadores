@@ -413,7 +413,7 @@ def render_gestion_indicadores_admin():
             st.info("No hay indicadores registrados.")
         else:
             with st.container(border=True):
-            st.markdown('### Eliminar Indicador')
+                st.markdown('### Eliminar Indicador')
                 
                 st.warning("⚠️ Esta acción es permanente y no se puede deshacer.")
                 
@@ -478,7 +478,7 @@ def render_gestion_hitos_admin():
     
     # Select indicator
     with st.container(border=True):
-            st.markdown('### Seleccionar Indicador')
+        st.markdown('### Seleccionar Indicador')
         
         options = []
         for _, row in df_con_hitos.iterrows():
@@ -632,7 +632,7 @@ def render_gestion_actividades_admin():
     
     # Select indicator first
     with st.container(border=True):
-            st.markdown('### Seleccionar Indicador')
+        st.markdown('### Seleccionar Indicador')
         
         options_ind = []
         for _, row in df_con_hitos.iterrows():
@@ -687,7 +687,7 @@ def render_gestion_actividades_admin():
             
             # Show existing actividades
             with st.container(border=True):
-            st.markdown('### Actividades Existentes')
+                st.markdown('### Actividades Existentes')
                 
                 if len(actividades_df) > 0:
                     for _, actividad in actividades_df.iterrows():
@@ -725,7 +725,7 @@ def render_gestion_actividades_admin():
             
             # Create new actividad
             with st.container(border=True):
-            st.markdown('### ➕ Agregar Nueva Actividad')
+                st.markdown('### ➕ Agregar Nueva Actividad')
                 
                 with st.form("crear_actividad_form"):
                     descripcion_actividad = st.text_input(
@@ -803,7 +803,7 @@ def render_actualizacion_mensual_owner():
     
     # Select responsable
     with st.container(border=True):
-            st.markdown('### Seleccionar Responsable')
+        st.markdown('### Seleccionar Responsable')
         
         selected_responsable = st.selectbox(
             "Responsable",
