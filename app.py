@@ -833,9 +833,8 @@ def render_actualizacion_mensual_owner():
         st.markdown(f"**Total de items asignados:** {total_items} ({len(hitos_df)} hitos, {len(actividades_df)} actividades)")
         
         # Form to report monthly progress
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(f'<div class="card-header">Reporte Mensual - {current_month}</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown(f'### Reporte Mensual - {current_month}')
             
             with st.form("reporte_mensual_form"):
                 reportes = []
