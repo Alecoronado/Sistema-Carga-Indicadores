@@ -6,8 +6,8 @@ Modern web-based indicator and milestone tracking system with strict role separa
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from database import Database
-from styles import get_custom_css, get_status_badge, get_progress_bar
+from src.database import Database
+from src.styles import get_custom_css, get_status_badge, get_progress_bar
 
 # Page configuration
 st.set_page_config(
