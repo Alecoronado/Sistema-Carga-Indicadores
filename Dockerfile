@@ -25,4 +25,4 @@ COPY FONPLATA_Modelo_Datos_2026_1.xlsx ./
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "cd backend && python import_excel.py && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD sh -c "cd /app/backend && python import_excel.py && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
