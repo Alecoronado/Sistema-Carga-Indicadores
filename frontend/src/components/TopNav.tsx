@@ -1,14 +1,15 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import clsx from 'clsx'
-import { LayoutDashboard, PlusCircle, RefreshCw, Calendar, Clock, Download } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, RefreshCw, Calendar, Clock, Download, Target } from 'lucide-react'
 import { exportApi } from '../api'
 
 const nav = [
-  { to: '/', label: 'Dashboard',           icon: LayoutDashboard, end: true },
-  { to: '/nuevo',     label: 'Nuevo Indicador',    icon: PlusCircle },
-  { to: '/actualizar',label: 'Actualizar Indicador',icon: RefreshCw },
-  { to: '/gantt',     label: 'Gantt',               icon: Calendar },
-  { to: '/historial', label: 'Historial',            icon: Clock },
+  { to: '/',           label: 'Dashboard',            icon: LayoutDashboard, end: true },
+  { to: '/objetivos',  label: 'Objetivos',             icon: Target },
+  { to: '/nuevo',      label: 'Nuevo Indicador',       icon: PlusCircle },
+  { to: '/actualizar', label: 'Actualizar Indicador',  icon: RefreshCw },
+  { to: '/gantt',      label: 'Gantt',                 icon: Calendar },
+  { to: '/historial',  label: 'Historial',             icon: Clock },
 ]
 
 export default function TopNav() {

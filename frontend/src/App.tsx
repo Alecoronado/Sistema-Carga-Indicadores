@@ -5,6 +5,7 @@ import NuevoIndicador from './pages/NuevoIndicador'
 import ActualizarIndicador from './pages/ActualizarIndicador'
 import GanttPage from './pages/GanttPage'
 import HistorialPage from './pages/HistorialPage'
+import ObjetivosPage from './pages/ObjetivosPage'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route element={<TopNav />}>
           <Route index element={<Dashboard />} />
+          <Route path="objetivos" element={<ObjetivosPage />} />
           <Route path="nuevo" element={<NuevoIndicador />} />
           <Route path="actualizar" element={<ActualizarIndicador />} />
           <Route path="gantt" element={<GanttPage />} />
