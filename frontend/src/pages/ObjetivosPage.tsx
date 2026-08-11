@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { indicatorsApi, milestonesApi, objectivesApi } from '../api'
 import ProgressBar from '../components/ProgressBar'
 import StatusBadge from '../components/StatusBadge'
-import { ChevronDown, ChevronRight, Target, BarChart2, ListChecks } from 'lucide-react'
+import { ChevronDown, ChevronRight, Target, BarChart2, ListChecks, Pencil, X, Check } from 'lucide-react'
+import { LINEAMIENTOS, TIPOS_OBJETIVO } from '../types'
 
 const LINEAMIENTO_COLORS: Record<string, { border: string; badge: string; dot: string }> = {
   'Excelencia Operacional':    { border: 'border-l-indigo-400', badge: 'bg-indigo-100 text-indigo-700',  dot: 'bg-indigo-400' },
@@ -85,64 +86,191 @@ function ObjectiveCard({
   milestonesByIndicator: Record<string, any[]>
 }) {
   const [open, setOpen] = useState(false)
-  const colors = LINEAMIENTO_COLORS[obj.lineamiento ?? ''] ?? { border: 'border-l-slate-300', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300' }
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({
+    objetivo_institucional: obj.objetivo_institucional ?? '',
+    objetivo_anual: obj.objetivo_anual ?? '',
+    lineamiento: obj.lineamiento ?? '',
+    tipo_objetivo: obj.tipo_objetivo ?? '',
+    unidades_organizacionales: obj.unidades_organizacionales ?? '',
+  })
+
+  const qc = useQueryClient()
+  const saveMut = useMutation({
+    mutationFn: () => objectivesApi.update(obj.id_objetivo, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['objectives'] })
+      setEditing(false)
+    },
+  })
+
+  const colors = LINEAMIENTO_COLORS[editing ? form.lineamiento : (obj.lineamiento ?? '')] ??
+    { border: 'border-l-slate-300', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300' }
 
   const avance = obj.avance_promedio_pct ?? 0
   const nInd = indicators.length
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setForm({
+      objetivo_institucional: obj.objetivo_institucional ?? '',
+      objetivo_anual: obj.objetivo_anual ?? '',
+      lineamiento: obj.lineamiento ?? '',
+      tipo_objetivo: obj.tipo_objetivo ?? '',
+      unidades_organizacionales: obj.unidades_organizacionales ?? '',
+    })
+    setEditing(true)
+    setOpen(false)
+  }
 
   return (
     <div className={`card border-l-4 ${colors.border} overflow-hidden`}>
       {/* Objective header */}
       <div
-        className="flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
-        onClick={() => setOpen(o => !o)}
+        className={`flex items-start gap-4 px-5 py-4 transition-colors ${!editing ? 'cursor-pointer hover:bg-slate-50' : 'bg-indigo-50/40'}`}
+        onClick={() => !editing && setOpen(o => !o)}
       >
         <div className="pt-0.5 shrink-0 text-slate-400">
-          {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          {!editing && (open ? <ChevronDown size={18} /> : <ChevronRight size={18} />)}
+          {editing && <Pencil size={16} className="text-indigo-500" />}
         </div>
 
         <div className="flex-1 min-w-0">
           {/* Top line */}
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="font-mono text-xs font-black text-slate-500">{obj.id_objetivo}</span>
-            {obj.lineamiento && (
+            {!editing && obj.lineamiento && (
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>
                 {obj.lineamiento}
               </span>
             )}
           </div>
 
-          {/* Objetivo institucional */}
-          <p className="text-sm font-bold text-slate-800 leading-snug">{obj.objetivo_institucional}</p>
-
-          {/* Objetivo anual */}
-          {obj.objetivo_anual && obj.objetivo_anual !== obj.objetivo_institucional && (
-            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{obj.objetivo_anual}</p>
+          {!editing ? (
+            <>
+              <p className="text-sm font-bold text-slate-800 leading-snug">{obj.objetivo_institucional}</p>
+              {obj.objetivo_anual && obj.objetivo_anual !== obj.objetivo_institucional && (
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{obj.objetivo_anual}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs font-semibold text-indigo-600 mb-2">Editando objetivo</p>
           )}
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-5 shrink-0 text-right">
-          <div>
-            <p className="text-xs text-slate-400">Indicadores</p>
-            <p className="text-lg font-black text-slate-700 tabular-nums">{nInd}</p>
-          </div>
-          <div className="w-28">
-            <p className="text-xs text-slate-400 mb-1">Avance</p>
-            <ProgressBar value={avance} size="xs" />
-            <p className="text-xs font-bold text-slate-600 mt-0.5 tabular-nums text-right">{avance.toFixed(1)}%</p>
-          </div>
+        {/* Stats + edit button */}
+        <div className="flex items-center gap-4 shrink-0">
+          {!editing && (
+            <>
+              <div className="text-right">
+                <p className="text-xs text-slate-400">Indicadores</p>
+                <p className="text-lg font-black text-slate-700 tabular-nums">{nInd}</p>
+              </div>
+              <div className="w-28 text-right">
+                <p className="text-xs text-slate-400 mb-1">Avance</p>
+                <ProgressBar value={avance} size="xs" />
+                <p className="text-xs font-bold text-slate-600 mt-0.5 tabular-nums">{avance.toFixed(1)}%</p>
+              </div>
+            </>
+          )}
+          {!editing ? (
+            <button
+              onClick={startEdit}
+              className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title="Editar objetivo"
+            >
+              <Pencil size={15} />
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); saveMut.mutate() }}
+                disabled={saveMut.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+              >
+                <Check size={13} />
+                {saveMut.isPending ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setEditing(false) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                <X size={13} /> Cancelar
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Edit form */}
+      {editing && (
+        <div className="border-t border-indigo-100 px-5 py-5 bg-indigo-50/30 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="field-label">Objetivo Institucional</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.objetivo_institucional}
+                onChange={e => setForm(f => ({ ...f, objetivo_institucional: e.target.value }))}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="field-label">Objetivo Anual</label>
+              <textarea
+                rows={2}
+                className="field-input"
+                value={form.objetivo_anual}
+                onChange={e => setForm(f => ({ ...f, objetivo_anual: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="field-label">Lineamiento</label>
+              <select
+                className="field-input"
+                value={form.lineamiento}
+                onChange={e => setForm(f => ({ ...f, lineamiento: e.target.value }))}
+              >
+                <option value="">— Sin lineamiento —</option>
+                {LINEAMIENTOS.map(l => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Tipo de Objetivo</label>
+              <select
+                className="field-input"
+                value={form.tipo_objetivo}
+                onChange={e => setForm(f => ({ ...f, tipo_objetivo: e.target.value }))}
+              >
+                <option value="">—</option>
+                {TIPOS_OBJETIVO.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="field-label">Unidades Organizacionales</label>
+              <input
+                className="field-input"
+                value={form.unidades_organizacionales}
+                onChange={e => setForm(f => ({ ...f, unidades_organizacionales: e.target.value }))}
+                placeholder="Ej: VPF, VPO"
+              />
+            </div>
+          </div>
+          {saveMut.isError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              Error al guardar. Intente nuevamente.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Expanded: indicators list */}
-      {open && (
+      {open && !editing && (
         <div className="border-t border-slate-100 px-5 py-4 bg-slate-50/50">
           {indicators.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">Sin indicadores registrados</p>
           ) : (
             <div>
-              {/* Column headers */}
               <div className="flex items-center gap-3 px-4 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">
                 <span className="w-4" />
                 <span className="w-14 shrink-0">ID</span>
