@@ -44,13 +44,21 @@ def clean_date(val):
         return s
 
 
-def import_data():
+def import_data(force=False):
     db = SessionLocal()
     try:
         existing_obj = db.query(models.Objective).count()
-        if existing_obj > 0:
+        if existing_obj > 0 and not force:
             print(f"Base de datos ya tiene {existing_obj} objetivos. Saltando importación.")
             return
+
+        if existing_obj > 0:
+            print(f"Limpiando datos existentes ({existing_obj} objetivos)...")
+            db.query(models.Milestone).delete()
+            db.query(models.Indicator).delete()
+            db.query(models.Objective).delete()
+            db.commit()
+            print("  -> Datos anteriores eliminados.")
 
         print("Importando Objetivos...")
         df_obj = pd.read_excel(EXCEL_PATH, sheet_name="Objetivos")
@@ -187,4 +195,5 @@ def import_data():
 
 
 if __name__ == "__main__":
-    import_data()
+    force = "--force" in sys.argv
+    import_data(force=force)
